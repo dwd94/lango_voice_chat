@@ -14,16 +14,19 @@ interface Message {
 
 export default function SimpleChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
-  const [inputText, setInputText] = useState('')
   const [isConnected, setIsConnected] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [sourceLang, setSourceLang] = useState('en')
   const [targetLang, setTargetLang] = useState('es')
   const [isPlaying, setIsPlaying] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
   
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const languages = [
     { code: 'en', name: 'English' },
@@ -51,6 +54,26 @@ export default function SimpleChatPage() {
     scrollToBottom()
   }, [messages])
 
+  useEffect(() => {
+    if (isRecording) {
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+    } else {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current)
+        recordingIntervalRef.current = null
+      }
+      setRecordingTime(0)
+    }
+
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current)
+      }
+    }
+  }, [isRecording])
+
   const connectWebSocket = () => {
     const ws = new WebSocket('ws://localhost:8000/ws')
     
@@ -65,7 +88,7 @@ export default function SimpleChatPage() {
       if (data.type === 'translation') {
         const newMessage: Message = {
           id: data.data.message_id,
-          text: inputText,
+          text: data.data.original_text || 'Voice message',
           translated_text: data.data.translated_text,
           audio_url: data.data.audio_url,
           is_sender: true,
@@ -73,7 +96,6 @@ export default function SimpleChatPage() {
         }
         
         setMessages(prev => [...prev, newMessage])
-        setInputText('')
       } else if (data.type === 'error') {
         console.error('Translation error:', data.message)
         alert(`Translation error: ${data.message}`)
@@ -99,23 +121,67 @@ export default function SimpleChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const sendMessage = () => {
-    if (!inputText.trim() || !wsRef.current || !isConnected) return
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
 
-    const message = {
-      text: inputText,
-      source_lang: sourceLang,
-      target_lang: targetLang,
-      sender_id: 'user1'
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
+        sendAudioMessage(audioBlob)
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+    } catch (error) {
+      console.error('Error accessing microphone:', error)
+      alert('Could not access microphone. Please check permissions.')
     }
-
-    wsRef.current.send(JSON.stringify(message))
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+    }
+  }
+
+  const sendAudioMessage = async (audioBlob: Blob) => {
+    if (!wsRef.current || !isConnected) return
+
+    try {
+      // Convert audio to base64
+      const arrayBuffer = await audioBlob.arrayBuffer()
+      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+
+      const message = {
+        audio_data: base64Audio,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+        sender_id: 'user1'
+      }
+
+      wsRef.current.send(JSON.stringify(message))
+    } catch (error) {
+      console.error('Error sending audio message:', error)
+      alert('Error sending audio message')
+    }
+  }
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording()
     }
   }
 
@@ -155,7 +221,7 @@ export default function SimpleChatPage() {
             <select
               value={sourceLang}
               onChange={(e) => setSourceLang(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+              className="border border-gray-300 rounded-md px-3 py-1 text-sm text-gray-900 bg-white"
             >
               {languages.map(lang => (
                 <option key={lang.code} value={lang.code}>{lang.name}</option>
@@ -168,7 +234,7 @@ export default function SimpleChatPage() {
             <select
               value={targetLang}
               onChange={(e) => setTargetLang(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+              className="border border-gray-300 rounded-md px-3 py-1 text-sm text-gray-900 bg-white"
             >
               {languages.map(lang => (
                 <option key={lang.code} value={lang.code}>{lang.name}</option>
@@ -183,7 +249,7 @@ export default function SimpleChatPage() {
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.length === 0 && (
             <div className="text-center text-gray-500 py-8">
-              <p>Start a conversation by typing a message below</p>
+              <p>Start a conversation by recording a voice message</p>
             </div>
           )}
           
@@ -221,38 +287,40 @@ export default function SimpleChatPage() {
         </div>
       </div>
 
-      {/* Input */}
+      {/* Voice Recording Interface */}
       <div className="bg-white border-t p-4">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-end space-x-2">
-            <div className="flex-1">
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type your message here..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={2}
-                disabled={!isConnected}
-              />
-            </div>
+          <div className="flex flex-col items-center space-y-4">
+            {/* Recording Status */}
+            {isRecording && (
+              <div className="flex items-center space-x-2 text-red-500">
+                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium">
+                  Recording... {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+            )}
+            
+            {/* Voice Recording Button */}
             <button
-              onClick={sendMessage}
-              disabled={!inputText.trim() || !isConnected}
-              className="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send size={20} />
-            </button>
-            <button
-              onClick={() => setIsRecording(!isRecording)}
-              className={`p-2 rounded-lg ${
+              onClick={toggleRecording}
+              disabled={!isConnected}
+              className={`w-20 h-20 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-200 ${
                 isRecording 
-                  ? 'bg-red-500 text-white hover:bg-red-600' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+                  ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                  : 'bg-blue-500 hover:bg-blue-600'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+              {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
             </button>
+            
+            {/* Instructions */}
+            <p className="text-sm text-gray-500 text-center">
+              {isRecording 
+                ? 'Click the microphone to stop recording' 
+                : 'Click the microphone to start recording'
+              }
+            </p>
           </div>
         </div>
       </div>

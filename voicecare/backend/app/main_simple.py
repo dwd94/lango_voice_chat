@@ -19,12 +19,14 @@ logger = get_logger(__name__)
 
 # Pydantic models for WebSocket messages
 class SimpleMessage(BaseModel):
-    text: str
+    text: str = None
+    audio_data: str = None  # base64 encoded audio
     source_lang: str
     target_lang: str
     sender_id: str
 
 class SimpleResponse(BaseModel):
+    original_text: str = None
     translated_text: str
     audio_url: str = None
     message_id: str
@@ -113,11 +115,36 @@ async def websocket_endpoint(websocket: WebSocket):
             
             # Process message
             message_id = str(uuid.uuid4())
+            original_text = None
             
             try:
+                # Handle audio or text input
+                if message.audio_data:
+                    # Process audio with STT
+                    try:
+                        import base64
+                        audio_bytes = base64.b64decode(message.audio_data)
+                        original_text = await stt_service.transcribe(audio_bytes)
+                        logger.info(f"STT result: {original_text}")
+                    except Exception as e:
+                        logger.error(f"STT failed: {e}")
+                        await manager.send_message(websocket, {
+                            "type": "error",
+                            "message": f"Speech recognition failed: {str(e)}"
+                        })
+                        continue
+                elif message.text:
+                    original_text = message.text
+                else:
+                    await manager.send_message(websocket, {
+                        "type": "error",
+                        "message": "No text or audio data provided"
+                    })
+                    continue
+                
                 # Translate text
                 translated_text = await translate_service.translate(
-                    message.text,
+                    original_text,
                     message.source_lang,
                     message.target_lang
                 )
@@ -139,6 +166,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # Send response
                 response = SimpleResponse(
+                    original_text=original_text,
                     translated_text=translated_text,
                     audio_url=audio_url,
                     message_id=message_id
