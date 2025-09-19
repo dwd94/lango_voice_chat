@@ -13,7 +13,7 @@ from .core.config import settings
 from .core.logging import get_logger
 from .services.translate_libre import translate_service
 from .services.tts_elevenlabs import ElevenLabsTTSService
-from .services.stt_whisper import WhisperSTTService
+from .services.stt_elevenlabs import ElevenLabsSTTService
 
 logger = get_logger(__name__)
 
@@ -73,7 +73,7 @@ manager = ConnectionManager()
 
 # Initialize services
 tts_service = ElevenLabsTTSService()
-stt_service = WhisperSTTService()
+stt_service = ElevenLabsSTTService()
 
 # Create FastAPI app
 app = FastAPI(
@@ -124,7 +124,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     try:
                         import base64
                         audio_bytes = base64.b64decode(message.audio_data)
-                        original_text = await stt_service.transcribe(audio_bytes)
+                        stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                        original_text = stt_result.get("text", "")
+                        if not original_text:
+                            error_msg = stt_result.get("error", "Unknown STT error")
+                            logger.error(f"STT failed: {error_msg}")
+                            await manager.send_message(websocket, {
+                                "type": "error",
+                                "message": f"Speech recognition failed: {error_msg}"
+                            })
+                            continue
                         logger.info(f"STT result: {original_text}")
                     except Exception as e:
                         logger.error(f"STT failed: {e}")
@@ -152,10 +161,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Generate TTS audio
                 audio_url = None
                 try:
-                    audio_data = await tts_service.synthesize(
+                    audio_data = await tts_service.synthesize_elevenlabs(
                         text=translated_text,
-                        voice_id="21m00Tcm4TlvDq8ikWAM",  # Default voice
-                        model_id="eleven_monolingual_v1"
+                        lang=message.target_lang,
+                        voice_hint=None,
+                        sender_gender=None
                     )
                     if audio_data:
                         # In a real app, you'd save this to a file and return URL
