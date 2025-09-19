@@ -14,6 +14,7 @@ from .core.logging import get_logger
 from .services.translate_libre import translate_service
 from .services.tts_elevenlabs import ElevenLabsTTSService
 from .services.stt_elevenlabs import ElevenLabsSTTService
+from .services.stt_whisper import WhisperSTTService
 
 logger = get_logger(__name__)
 
@@ -74,6 +75,7 @@ manager = ConnectionManager()
 # Initialize services
 tts_service = ElevenLabsTTSService()
 stt_service = ElevenLabsSTTService()
+whisper_stt_service = WhisperSTTService()  # Fallback STT service
 
 # Create FastAPI app
 app = FastAPI(
@@ -120,23 +122,42 @@ async def websocket_endpoint(websocket: WebSocket):
             try:
                 # Handle audio or text input
                 if message.audio_data:
-                    # Process audio with STT
+                    # Process audio with STT (try ElevenLabs first, fallback to Whisper)
                     try:
                         import base64
                         audio_bytes = base64.b64decode(message.audio_data)
-                        stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
-                        original_text = stt_result.get("text", "")
+                        original_text = ""
+                        
+                        # Try ElevenLabs STT first
+                        try:
+                            stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                            original_text = stt_result.get("text", "")
+                            if original_text:
+                                logger.info(f"ElevenLabs STT result: {original_text}")
+                            else:
+                                error_msg = stt_result.get("error", "Unknown STT error")
+                                logger.warning(f"ElevenLabs STT failed: {error_msg}, trying Whisper fallback")
+                        except Exception as e:
+                            logger.warning(f"ElevenLabs STT failed: {e}, trying Whisper fallback")
+                        
+                        # Fallback to Whisper if ElevenLabs failed
                         if not original_text:
-                            error_msg = stt_result.get("error", "Unknown STT error")
-                            logger.error(f"STT failed: {error_msg}")
+                            try:
+                                original_text = await whisper_stt_service.transcribe(audio_bytes)
+                                logger.info(f"Whisper STT result: {original_text}")
+                            except Exception as e:
+                                logger.error(f"Whisper STT also failed: {e}")
+                                raise e
+                        
+                        if not original_text:
                             await manager.send_message(websocket, {
                                 "type": "error",
-                                "message": f"Speech recognition failed: {error_msg}"
+                                "message": "Speech recognition failed with both ElevenLabs and Whisper"
                             })
                             continue
-                        logger.info(f"STT result: {original_text}")
+                            
                     except Exception as e:
-                        logger.error(f"STT failed: {e}")
+                        logger.error(f"All STT services failed: {e}")
                         await manager.send_message(websocket, {
                             "type": "error",
                             "message": f"Speech recognition failed: {str(e)}"
@@ -171,8 +192,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         # In a real app, you'd save this to a file and return URL
                         # For simplicity, we'll just indicate audio was generated
                         audio_url = f"audio_{message_id}.mp3"
+                        logger.info("ElevenLabs TTS successful")
                 except Exception as e:
-                    logger.warning(f"TTS failed: {e}")
+                    logger.warning(f"ElevenLabs TTS failed: {e}, continuing without audio")
+                    # Continue without audio - the text translation will still work
                 
                 # Send response
                 response = SimpleResponse(
