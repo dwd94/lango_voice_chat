@@ -13,8 +13,10 @@ from .core.config import settings
 from .core.logging import get_logger
 from .services.translate_libre import translate_service
 from .services.tts_elevenlabs import ElevenLabsTTSService
+from .services.tts_openai import OpenAITTSService
 from .services.stt_elevenlabs import ElevenLabsSTTService
 from .services.stt_whisper import WhisperSTTService
+from .services.stt_openai import OpenAISTTService
 
 logger = get_logger(__name__)
 
@@ -72,10 +74,40 @@ class ConnectionManager:
 # Global connection manager
 manager = ConnectionManager()
 
+# Initialize services based on config
+def get_stt_service():
+    """Get STT service based on configuration."""
+    if settings.stt_provider == "elevenlabs":
+        return ElevenLabsSTTService()
+    elif settings.stt_provider == "openai":
+        return OpenAISTTService()
+    elif settings.stt_provider == "whisper":
+        return WhisperSTTService()
+    else:
+        logger.warning(f"Unknown STT provider: {settings.stt_provider}, falling back to whisper")
+        return WhisperSTTService()
+
+def get_tts_service():
+    """Get TTS service based on configuration."""
+    if settings.tts_provider == "elevenlabs":
+        return ElevenLabsTTSService()
+    elif settings.tts_provider == "openai":
+        return OpenAITTSService()
+    else:
+        logger.warning(f"Unknown TTS provider: {settings.tts_provider}, falling back to elevenlabs")
+        return ElevenLabsTTSService()
+
 # Initialize services
-tts_service = ElevenLabsTTSService()
-stt_service = ElevenLabsSTTService()
+stt_service = get_stt_service()
+tts_service = get_tts_service()
 whisper_stt_service = WhisperSTTService()  # Fallback STT service
+
+# Log service configuration
+logger.info(f"Simple Voice Chat configured with:")
+logger.info(f"  STT Provider: {settings.stt_provider}")
+logger.info(f"  TTS Provider: {settings.tts_provider}")
+logger.info(f"  Translation Provider: {settings.translation_provider}")
+logger.info(f"  Fallback STT: Whisper (enabled: {settings.stt_fallback_enabled})")
 
 # Create FastAPI app
 app = FastAPI(
@@ -128,18 +160,28 @@ async def websocket_endpoint(websocket: WebSocket):
                         audio_bytes = base64.b64decode(message.audio_data)
                         original_text = ""
                         
-                        # Try ElevenLabs STT first
+                        # Try configured STT service first
                         try:
-                            logger.info(f"Attempting ElevenLabs STT with {len(audio_bytes)} bytes of audio data")
-                            stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
-                            original_text = stt_result.get("text", "")
+                            logger.info(f"Attempting {settings.stt_provider} STT with {len(audio_bytes)} bytes of audio data")
+                            if settings.stt_provider == "elevenlabs":
+                                stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                                original_text = stt_result.get("text", "")
+                            elif settings.stt_provider == "openai":
+                                stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                                original_text = stt_result.get("text", "")
+                            elif settings.stt_provider == "whisper":
+                                stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                                original_text = stt_result.get("text", "")
+                            else:
+                                raise Exception(f"Unknown STT provider: {settings.stt_provider}")
+                            
                             if original_text:
-                                logger.info(f"ElevenLabs STT result: {original_text}")
+                                logger.info(f"{settings.stt_provider} STT result: {original_text}")
                             else:
                                 error_msg = stt_result.get("error", "Unknown STT error")
-                                logger.warning(f"ElevenLabs STT failed: {error_msg}, trying Whisper fallback")
+                                logger.warning(f"{settings.stt_provider} STT failed: {error_msg}, trying Whisper fallback")
                         except Exception as e:
-                            logger.warning(f"ElevenLabs STT failed with exception: {e}, trying Whisper fallback")
+                            logger.warning(f"{settings.stt_provider} STT failed with exception: {e}, trying Whisper fallback")
                         
                         # Fallback to Whisper if ElevenLabs failed
                         if not original_text:
@@ -188,19 +230,30 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Generate TTS audio
                 audio_url = None
                 try:
-                    audio_data = await tts_service.synthesize_elevenlabs(
-                        text=translated_text,
-                        lang=message.target_lang,
-                        voice_hint=None,
-                        sender_gender=None
-                    )
+                    logger.info(f"Attempting {settings.tts_provider} TTS for: {translated_text[:50]}...")
+                    if settings.tts_provider == "elevenlabs":
+                        audio_data = await tts_service.synthesize_elevenlabs(
+                            text=translated_text,
+                            lang=message.target_lang,
+                            voice_hint=None,
+                            sender_gender=None
+                        )
+                    elif settings.tts_provider == "openai":
+                        audio_data = await tts_service.synthesize(
+                            text=translated_text,
+                            voice=settings.openai_tts_voice,
+                            model=settings.openai_tts_model
+                        )
+                    else:
+                        raise Exception(f"Unknown TTS provider: {settings.tts_provider}")
+                    
                     if audio_data:
                         # In a real app, you'd save this to a file and return URL
                         # For simplicity, we'll just indicate audio was generated
                         audio_url = f"audio_{message_id}.mp3"
-                        logger.info("ElevenLabs TTS successful")
+                        logger.info(f"{settings.tts_provider} TTS successful")
                 except Exception as e:
-                    logger.warning(f"ElevenLabs TTS failed: {e}, continuing without audio")
+                    logger.warning(f"{settings.tts_provider} TTS failed: {e}, continuing without audio")
                     # Continue without audio - the text translation will still work
                 
                 # Send response
