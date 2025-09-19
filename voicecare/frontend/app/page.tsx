@@ -84,16 +84,16 @@ export default function LandingPage() {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
               <Link
-                href="/auth/login"
+                href="/simple-chat"
                 className="btn-primary px-8 py-4 rounded-2xl text-lg font-semibold text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                Sign In
+                Start Simple Chat
               </Link>
               <Link
-                href="/auth/register"
+                href="/test-connection"
                 className="btn-secondary px-8 py-4 rounded-2xl text-lg font-semibold text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                Get Started
+                Test Connection
               </Link>
             </div>
 
@@ -183,16 +183,16 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href="/auth/register"
+                href="/simple-chat"
                 className="btn-primary px-8 py-4 rounded-2xl text-lg font-semibold text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                Start Free Trial
+                Start Simple Chat
               </Link>
               <Link
-                href="/settings/languages"
+                href="/test-connection"
                 className="btn-secondary px-8 py-4 rounded-2xl text-lg font-semibold text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                View Capabilities
+                Test Connection
               </Link>
             </div>
           </div>
