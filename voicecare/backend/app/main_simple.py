@@ -2,6 +2,7 @@
 
 import uuid
 import json
+import base64
 from typing import Dict, Set
 from datetime import datetime
 
@@ -230,6 +231,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # Generate TTS audio
                 audio_url = None
+                audio_data_base64 = None
                 try:
                     logger.info(f"Attempting {settings.tts_provider} TTS for: {translated_text[:50]}...")
                     if settings.tts_provider == "elevenlabs":
@@ -240,7 +242,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             sender_gender=None
                         )
                         if audio_data:
-                            audio_url = f"audio_{message_id}.mp3"
+                            audio_data_base64 = base64.b64encode(audio_data).decode('utf-8')
+                            audio_url = f"data:audio/mpeg;base64,{audio_data_base64}"
                             logger.info(f"{settings.tts_provider} TTS successful")
                     elif settings.tts_provider == "openai":
                         audio_data, mime_type, is_error, voice_used = await tts_service.synthesize(
@@ -251,7 +254,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             sender_id=message.sender_id
                         )
                         if audio_data and not is_error:
-                            audio_url = f"audio_{message_id}.mp3"
+                            audio_data_base64 = base64.b64encode(audio_data).decode('utf-8')
+                            audio_url = f"data:audio/mpeg;base64,{audio_data_base64}"
                             logger.info(f"{settings.tts_provider} TTS successful with voice: {voice_used}")
                         else:
                             logger.warning(f"{settings.tts_provider} TTS returned empty or error result")

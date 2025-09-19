@@ -20,6 +20,7 @@ export default function SimpleChatPage() {
   const [targetLang, setTargetLang] = useState('es')
   const [isPlaying, setIsPlaying] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
+  const [isProcessing, setIsProcessing] = useState(false)
   
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -96,9 +97,18 @@ export default function SimpleChatPage() {
         }
         
         setMessages(prev => [...prev, newMessage])
+        setIsProcessing(false) // Stop processing indicator
+        
+        // Auto-play the translated audio if available
+        if (data.data.audio_url) {
+          setTimeout(() => {
+            playAudio(data.data.audio_url)
+          }, 500) // Small delay to ensure message is rendered
+        }
       } else if (data.type === 'error') {
         console.error('Translation error:', data.message)
         alert(`Translation error: ${data.message}`)
+        setIsProcessing(false) // Stop processing indicator on error
       }
     }
     
@@ -162,9 +172,13 @@ export default function SimpleChatPage() {
     if (!wsRef.current || !isConnected) return
 
     try {
+      // Show processing indicator
+      setIsProcessing(true)
+      
       // Convert audio to base64
       const arrayBuffer = await audioBlob.arrayBuffer()
-      const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      const uint8Array = new Uint8Array(arrayBuffer)
+      const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(uint8Array)))
       
       console.log(`Sending audio: ${audioBlob.size} bytes, base64 length: ${base64Audio.length}`)
 
@@ -179,6 +193,7 @@ export default function SimpleChatPage() {
     } catch (error) {
       console.error('Error sending audio message:', error)
       alert('Error sending audio message')
+      setIsProcessing(false) // Stop processing indicator on error
     }
   }
 
@@ -306,13 +321,25 @@ export default function SimpleChatPage() {
               </div>
             )}
             
+            {/* Processing Status */}
+            {isProcessing && (
+              <div className="flex items-center space-x-2 text-blue-500">
+                <div className="w-3 h-3 bg-blue-500 rounded-full animate-spin"></div>
+                <span className="text-sm font-medium">
+                  Processing audio and translating...
+                </span>
+              </div>
+            )}
+            
             {/* Voice Recording Button */}
             <button
               onClick={toggleRecording}
-              disabled={!isConnected}
+              disabled={!isConnected || isProcessing}
               className={`w-20 h-20 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-200 ${
                 isRecording 
                   ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                  : isProcessing
+                  ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-blue-500 hover:bg-blue-600'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
@@ -323,6 +350,8 @@ export default function SimpleChatPage() {
             <p className="text-sm text-gray-500 text-center">
               {isRecording 
                 ? 'Click the microphone to stop recording' 
+                : isProcessing
+                ? 'Processing your audio...'
                 : 'Click the microphone to start recording'
               }
             </p>
