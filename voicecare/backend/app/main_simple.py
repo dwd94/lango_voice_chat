@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 
 from .core.config import settings
 from .core.logging import get_logger
@@ -31,7 +32,7 @@ class SimpleMessage(BaseModel):
 class SimpleResponse(BaseModel):
     original_text: str = None
     translated_text: str
-    audio_url: str = None
+    audio_url: Optional[str] = None
     message_id: str
 
 class ConnectionManager:
@@ -238,20 +239,24 @@ async def websocket_endpoint(websocket: WebSocket):
                             voice_hint=None,
                             sender_gender=None
                         )
+                        if audio_data:
+                            audio_url = f"audio_{message_id}.mp3"
+                            logger.info(f"{settings.tts_provider} TTS successful")
                     elif settings.tts_provider == "openai":
-                        audio_data = await tts_service.synthesize(
+                        audio_data, mime_type, is_error, voice_used = await tts_service.synthesize(
                             text=translated_text,
-                            voice=settings.openai_tts_voice,
-                            model=settings.openai_tts_model
+                            lang=message.target_lang,
+                            voice_hint=settings.openai_tts_voice,
+                            sender_gender=None,
+                            sender_id=message.sender_id
                         )
+                        if audio_data and not is_error:
+                            audio_url = f"audio_{message_id}.mp3"
+                            logger.info(f"{settings.tts_provider} TTS successful with voice: {voice_used}")
+                        else:
+                            logger.warning(f"{settings.tts_provider} TTS returned empty or error result")
                     else:
                         raise Exception(f"Unknown TTS provider: {settings.tts_provider}")
-                    
-                    if audio_data:
-                        # In a real app, you'd save this to a file and return URL
-                        # For simplicity, we'll just indicate audio was generated
-                        audio_url = f"audio_{message_id}.mp3"
-                        logger.info(f"{settings.tts_provider} TTS successful")
                 except Exception as e:
                     logger.warning(f"{settings.tts_provider} TTS failed: {e}, continuing without audio")
                     # Continue without audio - the text translation will still work
