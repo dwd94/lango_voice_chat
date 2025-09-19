@@ -130,6 +130,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         
                         # Try ElevenLabs STT first
                         try:
+                            logger.info(f"Attempting ElevenLabs STT with {len(audio_bytes)} bytes of audio data")
                             stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
                             original_text = stt_result.get("text", "")
                             if original_text:
@@ -138,7 +139,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 error_msg = stt_result.get("error", "Unknown STT error")
                                 logger.warning(f"ElevenLabs STT failed: {error_msg}, trying Whisper fallback")
                         except Exception as e:
-                            logger.warning(f"ElevenLabs STT failed: {e}, trying Whisper fallback")
+                            logger.warning(f"ElevenLabs STT failed with exception: {e}, trying Whisper fallback")
                         
                         # Fallback to Whisper if ElevenLabs failed
                         if not original_text:

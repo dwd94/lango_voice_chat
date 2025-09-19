@@ -135,7 +135,10 @@ export default function SimpleChatPage() {
       }
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
+        // Use the actual MIME type from MediaRecorder
+        const mimeType = mediaRecorder.mimeType || 'audio/webm'
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+        console.log(`Created audio blob: ${audioBlob.size} bytes, type: ${mimeType}`)
         sendAudioMessage(audioBlob)
         stream.getTracks().forEach(track => track.stop())
       }
@@ -162,6 +165,8 @@ export default function SimpleChatPage() {
       // Convert audio to base64
       const arrayBuffer = await audioBlob.arrayBuffer()
       const base64Audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      
+      console.log(`Sending audio: ${audioBlob.size} bytes, base64 length: ${base64Audio.length}`)
 
       const message = {
         audio_data: base64Audio,
@@ -201,7 +206,7 @@ export default function SimpleChatPage() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b p-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">Simple Voice Chat</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Lango Voice Chat</h1>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
