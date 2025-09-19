@@ -143,8 +143,13 @@ async def websocket_endpoint(websocket: WebSocket):
                         # Fallback to Whisper if ElevenLabs failed
                         if not original_text:
                             try:
-                                original_text = await whisper_stt_service.transcribe(audio_bytes)
-                                logger.info(f"Whisper STT result: {original_text}")
+                                whisper_result = await whisper_stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                                original_text = whisper_result.get("text", "")
+                                if original_text:
+                                    logger.info(f"Whisper STT result: {original_text}")
+                                else:
+                                    logger.error("Whisper STT returned empty result")
+                                    raise Exception("Whisper STT returned empty result")
                             except Exception as e:
                                 logger.error(f"Whisper STT also failed: {e}")
                                 raise e
