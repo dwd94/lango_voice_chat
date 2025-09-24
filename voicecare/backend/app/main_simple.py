@@ -121,11 +121,16 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "message": "Voice Chat App is running"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -158,7 +163,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 if message.audio_data:
                     # Process audio with STT (try ElevenLabs first, fallback to Whisper)
                     try:
-                        import base64
                         audio_bytes = base64.b64decode(message.audio_data)
                         original_text = ""
                         
@@ -234,6 +238,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 audio_data_base64 = None
                 try:
                     logger.info(f"Attempting {settings.tts_provider} TTS for: {translated_text[:50]}...")
+                    logger.info(f"TTS service type: {type(tts_service)}")
                     if settings.tts_provider == "elevenlabs":
                         audio_data = await tts_service.synthesize_elevenlabs(
                             text=translated_text,
@@ -246,6 +251,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             audio_url = f"data:audio/mpeg;base64,{audio_data_base64}"
                             logger.info(f"{settings.tts_provider} TTS successful")
                     elif settings.tts_provider == "openai":
+                        logger.info(f"Calling OpenAI TTS with voice: {settings.openai_tts_voice}")
                         audio_data, mime_type, is_error, voice_used = await tts_service.synthesize(
                             text=translated_text,
                             lang=message.target_lang,
@@ -253,16 +259,20 @@ async def websocket_endpoint(websocket: WebSocket):
                             sender_gender=None,
                             sender_id=message.sender_id
                         )
+                        logger.info(f"OpenAI TTS result: audio_data={len(audio_data) if audio_data else 'None'}, mime_type={mime_type}, is_error={is_error}, voice_used={voice_used}")
                         if audio_data and not is_error:
                             audio_data_base64 = base64.b64encode(audio_data).decode('utf-8')
-                            audio_url = f"data:audio/mpeg;base64,{audio_data_base64}"
+                            audio_url = f"data:{mime_type};base64,{audio_data_base64}"
                             logger.info(f"{settings.tts_provider} TTS successful with voice: {voice_used}")
                         else:
                             logger.warning(f"{settings.tts_provider} TTS returned empty or error result")
                     else:
                         raise Exception(f"Unknown TTS provider: {settings.tts_provider}")
                 except Exception as e:
-                    logger.warning(f"{settings.tts_provider} TTS failed: {e}, continuing without audio")
+                    logger.error(f"{settings.tts_provider} TTS failed: {e}, continuing without audio")
+                    logger.error(f"TTS Exception details: {type(e).__name__}: {str(e)}")
+                    import traceback
+                    logger.error(f"TTS Traceback: {traceback.format_exc()}")
                     # Continue without audio - the text translation will still work
                 
                 # Send response
@@ -303,9 +313,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main_simple:app",
-        host="127.0.0.1",
-        port=8000,
-        reload=True
-    )
+    uvicorn.run("app.main_simple:app", host="127.0.0.1", port=8000, reload=True)

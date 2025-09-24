@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     max_voice_seconds: int = 120
     
     # STT Configuration
-    stt_provider: str = "elevenlabs"  # options: elevenlabs, openai, whisper
+    stt_provider: str = "openai"  # options: elevenlabs, openai, whisper
     stt_fallback_enabled: bool = True
     whisper_model: str = "tiny"  # Changed from "small" to "tiny" for better reliability
     whisper_compute: str = "cpu"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     openai_stt_model: str = "whisper-1"
     
     # TTS Configuration
-    tts_provider: str = "elevenlabs"  # options: elevenlabs, openai, browser
+    tts_provider: str = "openai"  # options: elevenlabs, openai, browser
     
     # Translation Configuration
     translation_provider: str = "libre"  # options: libre, openai
