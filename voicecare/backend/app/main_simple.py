@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from .core.config import settings
-from .core.logging import get_logger
+from .core.logging import get_logger, setup_logging
 from .services.translate_libre import translate_service
 from .services.tts_elevenlabs import ElevenLabsTTSService
 from .services.tts_openai import OpenAITTSService
@@ -20,7 +20,12 @@ from .services.stt_elevenlabs import ElevenLabsSTTService
 from .services.stt_whisper import WhisperSTTService
 from .services.stt_openai import OpenAISTTService
 
+# Setup logging first
+setup_logging()
 logger = get_logger(__name__)
+
+# Test logging
+logger.info("🚀 Simple Voice Chat Backend starting up...")
 
 # Pydantic models for WebSocket messages
 class SimpleMessage(BaseModel):
@@ -76,40 +81,51 @@ class ConnectionManager:
 # Global connection manager
 manager = ConnectionManager()
 
-# Initialize services based on config
+# Dynamic service factories - these check config each time they're called
 def get_stt_service():
-    """Get STT service based on configuration."""
-    if settings.stt_provider == "elevenlabs":
+    """Get STT service based on current configuration."""
+    current_provider = settings.stt_provider
+    logger.info(f"Getting STT service for provider: {current_provider}")
+    
+    if current_provider == "elevenlabs":
         return ElevenLabsSTTService()
-    elif settings.stt_provider == "openai":
+    elif current_provider == "openai":
         return OpenAISTTService()
-    elif settings.stt_provider == "whisper":
+    elif current_provider == "whisper":
         return WhisperSTTService()
     else:
-        logger.warning(f"Unknown STT provider: {settings.stt_provider}, falling back to whisper")
+        logger.warning(f"Unknown STT provider: {current_provider}, falling back to whisper")
         return WhisperSTTService()
 
 def get_tts_service():
-    """Get TTS service based on configuration."""
-    if settings.tts_provider == "elevenlabs":
+    """Get TTS service based on current configuration."""
+    current_provider = settings.tts_provider
+    logger.info(f"Getting TTS service for provider: {current_provider}")
+    
+    if current_provider == "elevenlabs":
         return ElevenLabsTTSService()
-    elif settings.tts_provider == "openai":
+    elif current_provider == "openai":
         return OpenAITTSService()
     else:
-        logger.warning(f"Unknown TTS provider: {settings.tts_provider}, falling back to elevenlabs")
-        return ElevenLabsTTSService()
+        logger.warning(f"Unknown TTS provider: {current_provider}, falling back to openai")
+        return OpenAITTSService()
 
-# Initialize services
-stt_service = get_stt_service()
-tts_service = get_tts_service()
+# Initialize fallback service (always available)
 whisper_stt_service = WhisperSTTService()  # Fallback STT service
 
 # Log service configuration
-logger.info(f"Simple Voice Chat configured with:")
-logger.info(f"  STT Provider: {settings.stt_provider}")
-logger.info(f"  TTS Provider: {settings.tts_provider}")
-logger.info(f"  Translation Provider: {settings.translation_provider}")
-logger.info(f"  Fallback STT: Whisper (enabled: {settings.stt_fallback_enabled})")
+logger.info("=" * 60)
+logger.info("SIMPLE VOICE CHAT CONFIGURATION")
+logger.info("=" * 60)
+logger.info(f"STT Provider: {settings.stt_provider}")
+logger.info(f"TTS Provider: {settings.tts_provider}")
+logger.info(f"Translation Provider: {settings.translation_provider}")
+logger.info(f"STT Fallback Enabled: {settings.stt_fallback_enabled}")
+logger.info(f"OpenAI API Key: {'SET' if settings.openai_api_key else 'NOT SET'}")
+logger.info(f"ElevenLabs API Key: {'SET' if settings.elevenlabs_api_key else 'NOT SET'}")
+logger.info("=" * 60)
+logger.info("Services will be dynamically selected based on configuration")
+logger.info("=" * 60)
 
 # Create FastAPI app
 app = FastAPI(
@@ -117,6 +133,13 @@ app = FastAPI(
     description="Simple voice chat with translation",
     version="1.0.0"
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Log startup information."""
+    logger.info("🎉 Simple Voice Chat Backend is now running!")
+    logger.info(f"📡 Server running on http://127.0.0.1:8000")
+    logger.info(f"🔧 Debug config available at http://127.0.0.1:8000/debug/config")
 
 # Add CORS middleware
 app.add_middleware(
@@ -131,6 +154,28 @@ app.add_middleware(
 async def health_check():
     """Health check endpoint for monitoring."""
     return {"status": "healthy", "message": "Voice Chat App is running"}
+
+@app.get("/debug/config")
+async def debug_config():
+    """Debug endpoint to show current configuration and active services."""
+    # Get current services dynamically
+    current_stt_service = get_stt_service()
+    current_tts_service = get_tts_service()
+    
+    return {
+        "stt_provider": settings.stt_provider,
+        "tts_provider": settings.tts_provider,
+        "translation_provider": settings.translation_provider,
+        "stt_fallback_enabled": settings.stt_fallback_enabled,
+        "openai_api_key_set": bool(settings.openai_api_key),
+        "elevenlabs_api_key_set": bool(settings.elevenlabs_api_key),
+        "current_stt_service": type(current_stt_service).__name__,
+        "current_tts_service": type(current_tts_service).__name__,
+        "openai_tts_voice": settings.openai_tts_voice,
+        "openai_stt_model": settings.openai_stt_model,
+        "elevenlabs_stt_model": settings.elevenlabs_stt_model,
+        "note": "Services are dynamically selected based on current configuration"
+    }
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -168,45 +213,57 @@ async def websocket_endpoint(websocket: WebSocket):
                         
                         # Try configured STT service first
                         try:
-                            logger.info(f"Attempting {settings.stt_provider} STT with {len(audio_bytes)} bytes of audio data")
-                            if settings.stt_provider == "elevenlabs":
-                                stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
-                                original_text = stt_result.get("text", "")
-                            elif settings.stt_provider == "openai":
-                                stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
-                                original_text = stt_result.get("text", "")
-                            elif settings.stt_provider == "whisper":
-                                stt_result = await stt_service.transcribe_audio(audio_bytes, message.source_lang)
-                                original_text = stt_result.get("text", "")
-                            else:
-                                raise Exception(f"Unknown STT provider: {settings.stt_provider}")
+                            # Get the current STT service dynamically
+                            current_stt_service = get_stt_service()
+                            
+                            logger.info("=" * 40)
+                            logger.info(f"STT PROCESSING - Primary Service: {settings.stt_provider}")
+                            logger.info(f"Audio size: {len(audio_bytes)} bytes")
+                            logger.info(f"Language hint: {message.source_lang}")
+                            logger.info(f"STT Service type: {type(current_stt_service).__name__}")
+                            logger.info("=" * 40)
+                            
+                            logger.info(f"Calling {settings.stt_provider} STT service...")
+                            stt_result = await current_stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                            original_text = stt_result.get("text", "")
+                            
+                            logger.info(f"STT Result: {stt_result}")
                             
                             if original_text:
-                                logger.info(f"{settings.stt_provider} STT result: {original_text}")
+                                logger.info(f"✅ {settings.stt_provider} STT SUCCESS: '{original_text[:100]}...'")
                             else:
                                 error_msg = stt_result.get("error", "Unknown STT error")
-                                logger.warning(f"{settings.stt_provider} STT failed: {error_msg}, trying Whisper fallback")
+                                logger.warning(f"❌ {settings.stt_provider} STT FAILED: {error_msg}")
+                                logger.warning(f"Will try Whisper fallback (enabled: {settings.stt_fallback_enabled})")
                         except Exception as e:
-                            logger.warning(f"{settings.stt_provider} STT failed with exception: {e}, trying Whisper fallback")
+                            logger.error(f"❌ {settings.stt_provider} STT EXCEPTION: {e}")
+                            logger.warning(f"Will try Whisper fallback (enabled: {settings.stt_fallback_enabled})")
                         
-                        # Fallback to Whisper if ElevenLabs failed
-                        if not original_text:
+                        # Fallback to Whisper if primary STT failed (only if fallback is enabled)
+                        if not original_text and settings.stt_fallback_enabled:
+                            logger.info("=" * 40)
+                            logger.info("STT FALLBACK - Trying Whisper")
+                            logger.info("=" * 40)
                             try:
+                                logger.info("Calling Whisper STT fallback service...")
                                 whisper_result = await whisper_stt_service.transcribe_audio(audio_bytes, message.source_lang)
+                                logger.info(f"Whisper fallback result: {whisper_result}")
                                 original_text = whisper_result.get("text", "")
                                 if original_text:
-                                    logger.info(f"Whisper STT result: {original_text}")
+                                    logger.info(f"✅ Whisper STT FALLBACK SUCCESS: '{original_text[:100]}...'")
                                 else:
-                                    logger.error("Whisper STT returned empty result")
-                                    raise Exception("Whisper STT returned empty result")
+                                    logger.error("❌ Whisper STT fallback returned empty result")
+                                    raise Exception("Whisper STT fallback returned empty result")
                             except Exception as e:
-                                logger.error(f"Whisper STT also failed: {e}")
+                                logger.error(f"❌ Whisper STT fallback also failed: {e}")
                                 raise e
+                        elif not original_text and not settings.stt_fallback_enabled:
+                            logger.warning("❌ Primary STT failed and fallback is DISABLED")
                         
                         if not original_text:
                             await manager.send_message(websocket, {
                                 "type": "error",
-                                "message": "Speech recognition failed with both ElevenLabs and Whisper"
+                                "message": f"Speech recognition failed with {settings.stt_provider} and Whisper fallback"
                             })
                             continue
                             
@@ -237,22 +294,35 @@ async def websocket_endpoint(websocket: WebSocket):
                 audio_url = None
                 audio_data_base64 = None
                 try:
-                    logger.info(f"Attempting {settings.tts_provider} TTS for: {translated_text[:50]}...")
-                    logger.info(f"TTS service type: {type(tts_service)}")
+                    # Get the current TTS service dynamically
+                    current_tts_service = get_tts_service()
+                    
+                    logger.info("=" * 40)
+                    logger.info(f"TTS PROCESSING - Service: {settings.tts_provider}")
+                    logger.info(f"Text to synthesize: '{translated_text[:50]}...'")
+                    logger.info(f"Target language: {message.target_lang}")
+                    logger.info(f"TTS Service type: {type(current_tts_service).__name__}")
+                    logger.info("=" * 40)
+                    
                     if settings.tts_provider == "elevenlabs":
-                        audio_data = await tts_service.synthesize_elevenlabs(
+                        logger.info("Calling ElevenLabs TTS service...")
+                        audio_data, content_type, needs_fallback, voice_used = await current_tts_service.synthesize_elevenlabs(
                             text=translated_text,
                             lang=message.target_lang,
                             voice_hint=None,
-                            sender_gender=None
+                            sender_gender=None,
+                            sender_id=message.sender_id
                         )
-                        if audio_data:
+                        logger.info(f"ElevenLabs TTS result: audio_data={len(audio_data) if audio_data else 'None'}, content_type={content_type}, needs_fallback={needs_fallback}, voice_used={voice_used}")
+                        if audio_data and not needs_fallback:
                             audio_data_base64 = base64.b64encode(audio_data).decode('utf-8')
-                            audio_url = f"data:audio/mpeg;base64,{audio_data_base64}"
-                            logger.info(f"{settings.tts_provider} TTS successful")
+                            audio_url = f"data:{content_type};base64,{audio_data_base64}"
+                            logger.info(f"✅ ElevenLabs TTS SUCCESS with voice: {voice_used}")
+                        else:
+                            logger.warning(f"❌ ElevenLabs TTS FAILED: needs_fallback={needs_fallback}")
                     elif settings.tts_provider == "openai":
                         logger.info(f"Calling OpenAI TTS with voice: {settings.openai_tts_voice}")
-                        audio_data, mime_type, is_error, voice_used = await tts_service.synthesize(
+                        audio_data, mime_type, is_error, voice_used = await current_tts_service.synthesize(
                             text=translated_text,
                             lang=message.target_lang,
                             voice_hint=settings.openai_tts_voice,
@@ -263,9 +333,9 @@ async def websocket_endpoint(websocket: WebSocket):
                         if audio_data and not is_error:
                             audio_data_base64 = base64.b64encode(audio_data).decode('utf-8')
                             audio_url = f"data:{mime_type};base64,{audio_data_base64}"
-                            logger.info(f"{settings.tts_provider} TTS successful with voice: {voice_used}")
+                            logger.info(f"✅ OpenAI TTS SUCCESS with voice: {voice_used}")
                         else:
-                            logger.warning(f"{settings.tts_provider} TTS returned empty or error result")
+                            logger.warning(f"❌ OpenAI TTS FAILED: is_error={is_error}")
                     else:
                         raise Exception(f"Unknown TTS provider: {settings.tts_provider}")
                 except Exception as e:
@@ -313,4 +383,12 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main_simple:app", host="127.0.0.1", port=8000, reload=True)
+    logger.info("Starting uvicorn server...")
+    uvicorn.run(
+        "app.main_simple:app", 
+        host="127.0.0.1", 
+        port=8000, 
+        reload=True,
+        log_level="info",
+        access_log=True
+    )
