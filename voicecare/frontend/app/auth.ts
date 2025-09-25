@@ -94,32 +94,16 @@ export class AuthService {
   }
   
   /**
-   * Login user (demo implementation)
+   * Login user (real API)
    */
-  async login(userId: string, password: string): Promise<LoginResult> {
+  async login(email: string, password: string): Promise<LoginResult> {
     try {
-      // Demo users first
-      const demoUsers: Record<string, User> = {
-        '1': { id: '1', name: 'Admin User', role: 'admin', preferred_lang: 'en' },
-        '2': { id: '2', name: 'Ana Rodriguez', role: 'patient', preferred_lang: 'es' },
-        '3': { id: '3', name: 'Ben Smith', role: 'nurse', preferred_lang: 'en' }
-      };
-      if (demoUsers[userId]) {
-        const user = demoUsers[userId];
-        const token = `demo-token-${userId}`;
-        this.setToken(token);
-        this.setCurrentUser(user);
-        return { success: true, user, token };
-      }
-
-      // Fallback: fetch real user by ID from backend and set a demo token
       const { apiClient } = await import('./api-client');
-      const res = await apiClient.getUser(userId);
+      const res = await apiClient.loginUser(email, password);
       if (!res.success || !res.data) {
-        return { success: false, error: res.error || 'User not found' };
+        return { success: false, error: res.error || 'Invalid credentials' };
       }
-      const user = res.data;
-      const token = `demo-token-${userId}`;
+      const { user, token } = res.data;
       this.setToken(token);
       this.setCurrentUser(user);
       return { success: true, user, token };

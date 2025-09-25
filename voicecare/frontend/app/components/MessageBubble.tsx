@@ -33,7 +33,7 @@ export default function MessageBubble({
   onPlayAudio,
   onMarkAsPlayed
 }: MessageBubbleProps) {
-  const [isPlaying, setIsPlaying] = useState(false)
+  const [isPlaying, setIsPlaying ] = useState(false)
   const [playbackProgress, setPlaybackProgress] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 

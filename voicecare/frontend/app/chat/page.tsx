@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Users, Settings, Wifi, WifiOff, Volume2, VolumeX, AlertCircle } from 'lucide-react'
+import { Users, Wifi, WifiOff, Volume2, VolumeX, AlertCircle } from 'lucide-react'
 
 import AudioRecorder from '../components/AudioRecorder'
 import MessageBubble from '../components/MessageBubble'
@@ -43,21 +43,21 @@ interface Conversation {
 }
 
 export default function ChatPage() {
+  const searchParams = useSearchParams()
+  const conversationId = searchParams?.get('conversationId')
   const [user, setUser] = useState<User | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string>('')
+  const [error, setError] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const isTranscribingRef = useRef(false)
   const [currentlyPlayingAudio, setCurrentlyPlayingAudio] = useState<HTMLAudioElement | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [useWebSocketMode, setUseWebSocketMode] = useState(true)
-  const [showUserSwitcher, setShowUserSwitcher] = useState(false)
   const [showStartChat, setShowStartChat] = useState(false)
-  const [availableUsers, setAvailableUsers] = useState<User[]>([])
   const [modelInfo, setModelInfo] = useState<null | {
     stt: { provider: string; model?: string }
     tts: { provider: string; model?: string; voice?: string }
@@ -102,28 +102,28 @@ export default function ChatPage() {
       .catch(err => console.warn('Model info load failed:', err))
   }, [])
 
+  // Sync URL with active conversation
+  useEffect(() => {
+    if (activeConversation && router) {
+      // Update URL without causing a page reload
+      const newUrl = `/chat?conversationId=${activeConversation.id}`;
+      if (window.location.pathname + window.location.search !== newUrl) {
+        window.history.pushState({}, '', newUrl);
+      }
+    }
+  }, [activeConversation, router]);
+
   // Load messages when active conversation changes
   useEffect(() => {
     if (activeConversation) {
       loadMessages(activeConversation.id)
     }
   }, [activeConversation])
-
-  const switchUser = (newUser: { id: string, name: string, role: string, preferred_lang: string }) => {
-    console.log('Switching to user:', newUser)
-    
-    // Update localStorage
-    localStorage.setItem('voicecare_user', JSON.stringify(newUser))
-    localStorage.setItem('voicecare_token', 'demo-token') // Use demo token
-    
-    // Update state
-    setUser(newUser)
-    setMessages([]) // Clear messages when switching users
-    setActiveConversation(null)
-    setShowUserSwitcher(false)
-    
-    // The WebSocket will auto-reconnect with the new user ID
-  }
+  
+  // Handle conversation selection
+  const handleConversationSelect = useCallback((conversation: Conversation) => {
+    setActiveConversation(conversation);
+  }, [])
 
   const initializeUser = async () => {
     try {
@@ -138,9 +138,6 @@ export default function ChatPage() {
       const parsedUser = JSON.parse(userData)
       setUser(parsedUser)
 
-      // Load list of users for switcher (exclude current user)
-      await loadAvailableUsers(parsedUser.id)
-
       await loadConversations(parsedUser.id)
     } catch (error) {
       console.error('Failed to initialize user:', error)
@@ -152,22 +149,6 @@ export default function ChatPage() {
     }
   }
 
-  const loadAvailableUsers = async (currentUserId: string) => {
-    try {
-      const res = await fetch('/api/v1/users/')
-      if (!res.ok) throw new Error('Failed to load users')
-      const users: User[] = await res.json()
-      const others = users.filter(u => u.id !== currentUserId)
-      setAvailableUsers(others)
-    } catch (e) {
-      // Fallback to demo users
-      const fallback: User[] = [
-        { id: '2', name: 'Ana Rodriguez', role: 'patient', preferred_lang: 'es' },
-        { id: '3', name: 'Ben Smith', role: 'nurse', preferred_lang: 'en' }
-      ].filter(u => u.id !== currentUserId)
-      setAvailableUsers(fallback)
-    }
-  }
 
   const loadConversations = async (userId: string) => {
     try {
@@ -195,7 +176,16 @@ export default function ChatPage() {
           
           setConversations(formattedConversations);
           
-          // Auto-select first conversation
+          // If we have a conversationId in URL, find and set that conversation
+          if (conversationId) {
+            const targetConversation = formattedConversations.find(c => c.id === conversationId);
+            if (targetConversation) {
+              setActiveConversation(targetConversation);
+              return;
+            }
+          }
+          
+          // Otherwise auto-select first conversation
           if (formattedConversations.length > 0) {
             setActiveConversation(formattedConversations[0]);
           }
@@ -438,43 +428,6 @@ export default function ChatPage() {
     await generateTTSAudio(text, language, messageId, true, undefined, undefined)
   }
 
-  const startConversationWith = async (other: User) => {
-    if (!user) return
-    try {
-      const response = await fetch('/api/v1/conversations/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('voicecare_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ user_a_id: user.id, user_b_id: other.id })
-      })
-      if (!response.ok) throw new Error('Failed to create conversation')
-      const conv = await response.json()
-      const conversation: Conversation = {
-        id: conv.id,
-        user_a_id: conv.user_a_id,
-        user_b_id: conv.user_b_id,
-        user_a_name: conv.user_a?.name || 'User A',
-        user_b_name: conv.user_b?.name || 'User B',
-        created_at: conv.created_at,
-        user_a: conv.user_a,
-        user_b: conv.user_b
-      }
-      // Add or replace in list
-      setConversations(prev => {
-        const exists = prev.find(c => c.id === conversation.id)
-        if (exists) return prev.map(c => (c.id === conversation.id ? conversation : c))
-        return [conversation, ...prev]
-      })
-      setActiveConversation(conversation)
-      setShowStartChat(false)
-    } catch (e) {
-      console.error('Start chat failed', e)
-      setError('Failed to start chat')
-    }
-  }
-
   const onRecordingStart = useCallback(() => {
     setIsRecording(true)
   }, [])
@@ -482,7 +435,6 @@ export default function ChatPage() {
   const onRecordingStop = useCallback(() => {
     setIsRecording(false)
   }, [])
-
 
   const handleRecordingComplete = useCallback(async (audioBlob: Blob, duration: number) => {
     if (!user || !activeConversation) return
@@ -745,14 +697,13 @@ export default function ChatPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <div className="glass-card border-b border-white/10">
+      <div className="glass-card border-b border-white/10 relative z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <Link href="/" className="text-2xl font-bold text-white">
                 Voice<span className="text-purple-300">Care</span>
               </Link>
-              
               {activeConversation && (
                 <div className="flex items-center space-x-2">
                   <Users className="w-5 h-5 text-purple-300" />
@@ -804,69 +755,6 @@ export default function ChatPage() {
                 {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
 
-              {/* User Switcher for Testing */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowUserSwitcher(!showUserSwitcher)}
-                  className="text-xs bg-blue-500/20 hover:bg-blue-500/30 px-2 py-1 rounded text-blue-300"
-                  title="Switch User (Testing)"
-                >
-                  Switch User
-                </button>
-                
-                {showUserSwitcher && (
-                  <div className="absolute top-full right-0 mt-2 bg-navy-900/95 backdrop-blur border border-indigo-500/30 rounded-lg shadow-lg z-50 min-w-[240px]">
-                    <div className="p-2 space-y-1 max-h-80 overflow-auto">
-                      {availableUsers.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-purple-200">No other users found</div>
-                      ) : (
-                        availableUsers.map(u => (
-                          <button
-                            key={u.id}
-                            onClick={() => switchUser(u)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded text-white flex items-center justify-between"
-                          >
-                            <span>{u.name}</span>
-                            <span className="text-xs text-purple-200 capitalize">{u.role}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="relative">
-                <button
-                  onClick={() => setShowStartChat(!showStartChat)}
-                  className="text-xs bg-green-500/20 hover:bg-green-500/30 px-2 py-1 rounded text-green-300 ml-2"
-                  title="Start Chat With"
-                >
-                  New Chat
-                </button>
-                {showStartChat && (
-                  <div className="absolute top-full right-0 mt-2 bg-navy-900/95 backdrop-blur border border-indigo-500/30 rounded-lg shadow-lg z-50 min-w-[260px]">
-                    <div className="p-2 space-y-1 max-h-80 overflow-auto">
-                      {availableUsers.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-purple-200">No users available</div>
-                      ) : (
-                        availableUsers.map(u => (
-                          <button
-                            key={u.id}
-                            onClick={() => startConversationWith(u)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded text-white flex items-center justify-between"
-                          >
-                            <span>{u.name}</span>
-                            <span className="text-xs text-purple-200 capitalize">{u.role}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* User Info */}
               <div className="flex items-center space-x-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm ${
                   user.role === 'admin' ? 'bg-red-500' :

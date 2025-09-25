@@ -18,7 +18,7 @@ export default function LandingPage() {
         if (userData.role === 'admin') {
           router.push('/admin')
         } else {
-          router.push('/chat')
+          router.push('/conversations')
         }
       } catch (error) {
         // Invalid user data, clear storage

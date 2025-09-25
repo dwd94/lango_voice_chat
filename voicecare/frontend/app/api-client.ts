@@ -151,18 +151,23 @@ export class ApiClient {
   }
   
   /**
-   * Login user (demo implementation)
+   * Login user with email/password (real API)
    */
-  async login(userId: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
-    // For demo, we'll return a mock response
-    // In a real app, this would make a proper auth API call
-    return {
-      success: true,
-      data: {
-        user: { id: userId, name: 'Demo User', role: 'patient', preferred_lang: 'en' },
-        token: `demo-token-${userId}`
-      }
-    };
+  async loginUser(email: string, password: string): Promise<ApiResponse<{ user: User; token: string }>> {
+    try {
+     
+      const primary = await this.request<{ user: User; token: string }>(
+        '/v1/auth/login',
+        { method: 'POST', body: JSON.stringify({ email, password }) }
+      );
+      if (primary.success) return primary;
+    } catch {}
+
+    // Fallback to legacy users endpoint (sha256)
+    return this.request<{ user: User; token: string }>(
+      '/v1/users/login',
+      { method: 'POST', body: JSON.stringify({ email, password }) }
+    );
   }
   
   /**

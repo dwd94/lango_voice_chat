@@ -88,7 +88,7 @@ export default function AudioRecorder({
         setDuration(elapsed)
 
         // Auto-stop at max duration
-        if (elapsed >= maxDuration) {
+        if (elapsed >= maxDuration ) {
           stopRecording()
         }
       }, 1000)

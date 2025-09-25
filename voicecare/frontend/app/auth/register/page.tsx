@@ -35,7 +35,7 @@ export default function RegisterPage() {
       }
       // Redirect based on role
       if (role === 'admin') router.push('/admin')
-      else router.push('/chat')
+      else router.push('/conversations')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
