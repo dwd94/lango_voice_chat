@@ -480,9 +480,8 @@ class ElevenLabsTTSService:
                         logger.info(f"Using existing TTS gender for user {sender_id}: {existing_tts_gender}")
                         return existing_tts_gender
                     
-                    # Assign a random gender and store it
-                    import random
-                    assigned_gender = random.choice(["male", "female"])
+                    # Assign a default female gender and store it for consistency
+                    assigned_gender = "female"
                     
                     await session.execute(
                         update(User)
@@ -499,10 +498,9 @@ class ElevenLabsTTSService:
             except Exception as e:
                 logger.error(f"Failed to get/assign TTS gender for user {sender_id}: {e}")
         
-        # Fallback: randomly choose for this session only
-        import random
-        fallback_gender = random.choice(["male", "female"])
-        logger.info(f"No sender_id provided, using random gender for this session: {fallback_gender}")
+        # Fallback: use female voice for this session
+        fallback_gender = "female"
+        logger.info("No sender_id provided, defaulting TTS gender to female")
         return fallback_gender
 
     async def cleanup(self):
@@ -513,4 +511,4 @@ class ElevenLabsTTSService:
 
 
 # Global service instance
-elevenlabs_tts_service = ElevenLabsTTSService() 
+elevenlabs_tts_service = ElevenLabsTTSService()

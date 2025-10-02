@@ -61,7 +61,7 @@ class OpenAITTSService:
         }
         
         # Determine gender preference
-        gender_key = "neutral"  # Default fallback
+        gender_key = "female"  # Default fallback preference
         if sender_gender:
             gender_lower = sender_gender.lower().strip()
             logger.info(f"OpenAI TTS - Processing sender gender: '{sender_gender}' -> '{gender_lower}'")
@@ -70,12 +70,11 @@ class OpenAITTSService:
             elif gender_lower in ["male", "man", "m", "mas"]:
                 gender_key = "male"
             else:
-                # If gender is not clearly male/female, randomly choose between male and female
-                import random
-                gender_key = random.choice(["male", "female"])
-                logger.info(f"OpenAI TTS - Unknown gender '{sender_gender}', randomly selected: {gender_key}")
+                # If gender is ambiguous, prefer female voice for consistency
+                gender_key = "female"
+                logger.info(f"OpenAI TTS - Unknown gender '{sender_gender}', defaulting to female voice")
         else:
-            logger.info("OpenAI TTS - No sender gender provided, using neutral voice")
+            logger.info("OpenAI TTS - No sender gender provided, defaulting to female voice")
         
         # Select first available voice for the gender
         voices = gender_voices.get(gender_key, gender_voices["neutral"])
@@ -112,9 +111,8 @@ class OpenAITTSService:
                         logger.info(f"Using existing TTS gender for user {sender_id}: {existing_tts_gender}")
                         return existing_tts_gender
                     
-                    # Assign a random gender and store it
-                    import random
-                    assigned_gender = random.choice(["male", "female"])
+                    # Assign a default female gender and store it for consistency
+                    assigned_gender = "female"
                     
                     await session.execute(
                         update(User)
@@ -129,12 +127,10 @@ class OpenAITTSService:
             except Exception as e:
                 logger.error(f"Failed to get/assign TTS gender for user {sender_id}: {e}")
         
-        # Fallback: randomly choose for this session only
-        import random
-        fallback_gender = random.choice(["male", "female"])
-        logger.info(f"No sender_id provided, using random gender for this session: {fallback_gender}")
+        # Fallback: use female voice for this session
+        fallback_gender = "female"
+        logger.info("No sender_id provided, defaulting TTS gender to female")
         return fallback_gender
 
 
 openai_tts_service = OpenAITTSService()
-
