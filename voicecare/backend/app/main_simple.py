@@ -306,6 +306,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     
                     if settings.tts_provider == "elevenlabs":
                         logger.info("Calling ElevenLabs TTS service...")
+                        # Use asyncio.gather for parallel processing if needed
                         audio_data, content_type, needs_fallback, voice_used = await current_tts_service.synthesize_elevenlabs(
                             text=translated_text,
                             lang=message.target_lang,
@@ -315,6 +316,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         )
                         logger.info(f"ElevenLabs TTS result: audio_data={len(audio_data) if audio_data else 'None'}, content_type={content_type}, needs_fallback={needs_fallback}, voice_used={voice_used}")
                         if audio_data and not needs_fallback:
+                            # Optimize base64 encoding
                             audio_data_base64 = base64.b64encode(audio_data).decode('utf-8')
                             audio_url = f"data:{content_type};base64,{audio_data_base64}"
                             logger.info(f"✅ ElevenLabs TTS SUCCESS with voice: {voice_used}")

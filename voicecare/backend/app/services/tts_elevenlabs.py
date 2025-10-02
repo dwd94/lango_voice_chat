@@ -18,7 +18,18 @@ class ElevenLabsTTSService:
     def __init__(self):
         self.voices_cache: Optional[List[Dict]] = None
         self.base_url = "https://api.elevenlabs.io/v1"
+        self._http_client: Optional[httpx.AsyncClient] = None
+        self._gender_cache: Dict[str, str] = {}  # Cache for user gender assignments
         
+    async def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create persistent HTTP client."""
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(30.0),
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+            )
+        return self._http_client
+
     async def _load_voices_cache(self):
         """Load available ElevenLabs voices."""
         if self.voices_cache is not None:
@@ -30,25 +41,25 @@ class ElevenLabsTTSService:
             return
         
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.base_url}/voices",
-                    headers={"xi-api-key": settings.elevenlabs_api_key},
-                    timeout=10.0
-                )
+            client = await self._get_http_client()
+            response = await client.get(
+                f"{self.base_url}/voices",
+                headers={"xi-api-key": settings.elevenlabs_api_key},
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.voices_cache = data.get("voices", [])
+                logger.info(f"Loaded {len(self.voices_cache)} ElevenLabs voices")
+            elif response.status_code == 401:
+                logger.warning("ElevenLabs API key invalid - disabling ElevenLabs TTS")
+                self.voices_cache = []
+                # Don't clear the API key here as it might be valid for other operations
+            else:
+                logger.error(f"Failed to load ElevenLabs voices: {response.status_code}")
+                self.voices_cache = []
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    self.voices_cache = data.get("voices", [])
-                    logger.info(f"Loaded {len(self.voices_cache)} ElevenLabs voices")
-                elif response.status_code == 401:
-                    logger.warning("ElevenLabs API key invalid - disabling ElevenLabs TTS")
-                    self.voices_cache = []
-                    # Don't clear the API key here as it might be valid for other operations
-                else:
-                    logger.error(f"Failed to load ElevenLabs voices: {response.status_code}")
-                    self.voices_cache = []
-                    
         except Exception as e:
             logger.error(f"Error loading ElevenLabs voices: {e}")
             self.voices_cache = []
@@ -83,9 +94,10 @@ class ElevenLabsTTSService:
             logger.warning("ElevenLabs API key not configured")
             return b"", "audio/mpeg", True, None
         
+        # Load voices cache only once
         await self._load_voices_cache()
         
-        # Get or assign persistent gender for TTS
+        # Get or assign persistent gender for TTS (with caching)
         effective_gender = await self._get_or_assign_tts_gender(sender_gender, sender_id)
         
         # Find best voice for language and gender
@@ -267,34 +279,33 @@ class ElevenLabsTTSService:
     async def _synthesize_with_voice(self, text: str, voice_id: str) -> bytes:
         """Synthesize text with specific voice."""
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.base_url}/text-to-speech/{voice_id}",
-                    headers={
-                        "xi-api-key": settings.elevenlabs_api_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "text": text,
-                        "model_id": "eleven_multilingual_v2",  # Use multilingual model
-                        "voice_settings": {
-                            "stability": 0.5,
-                            "similarity_boost": 0.75,
-                            "style": 0.0,
-                            "use_speaker_boost": True
-                        }
-                    },
-                    timeout=30.0
-                )
+            client = await self._get_http_client()
+            response = await client.post(
+                f"{self.base_url}/text-to-speech/{voice_id}",
+                headers={
+                    "xi-api-key": settings.elevenlabs_api_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "text": text,
+                    "model_id": "eleven_multilingual_v2",  # Use multilingual model
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.75,
+                        "style": 0.0,
+                        "use_speaker_boost": True
+                    }
+                }
+            )
+            
+            if response.status_code == 200:
+                audio_bytes = response.content
+                logger.info(f"ElevenLabs synthesis successful: {len(audio_bytes)} bytes with voice {voice_id}")
+                return audio_bytes
+            else:
+                logger.error(f"ElevenLabs synthesis failed: {response.status_code} - {response.text}")
+                raise RuntimeError(f"ElevenLabs API error: {response.status_code}")
                 
-                if response.status_code == 200:
-                    audio_bytes = response.content
-                    logger.info(f"ElevenLabs synthesis successful: {len(audio_bytes)} bytes with voice {voice_id}")
-                    return audio_bytes
-                else:
-                    logger.error(f"ElevenLabs synthesis failed: {response.status_code} - {response.text}")
-                    raise RuntimeError(f"ElevenLabs API error: {response.status_code}")
-                    
         except httpx.TimeoutException:
             logger.error("ElevenLabs synthesis timed out")
             raise RuntimeError("ElevenLabs synthesis timed out")
@@ -446,6 +457,11 @@ class ElevenLabsTTSService:
         
         # If no clear gender and we have a sender_id, check/assign persistent gender
         if sender_id:
+            # Check in-memory cache first
+            if sender_id in self._gender_cache:
+                logger.info(f"Using cached TTS gender for user {sender_id}: {self._gender_cache[sender_id]}")
+                return self._gender_cache[sender_id]
+            
             try:
                 from ..db.session import AsyncSessionLocal
                 from ..db.models import User
@@ -459,6 +475,8 @@ class ElevenLabsTTSService:
                     existing_tts_gender = result.scalar_one_or_none()
                     
                     if existing_tts_gender:
+                        # Cache the result
+                        self._gender_cache[sender_id] = existing_tts_gender
                         logger.info(f"Using existing TTS gender for user {sender_id}: {existing_tts_gender}")
                         return existing_tts_gender
                     
@@ -473,6 +491,8 @@ class ElevenLabsTTSService:
                     )
                     await session.commit()
                     
+                    # Cache the result
+                    self._gender_cache[sender_id] = assigned_gender
                     logger.info(f"Assigned persistent TTS gender '{assigned_gender}' to user {sender_id}")
                     return assigned_gender
                     
@@ -484,6 +504,12 @@ class ElevenLabsTTSService:
         fallback_gender = random.choice(["male", "female"])
         logger.info(f"No sender_id provided, using random gender for this session: {fallback_gender}")
         return fallback_gender
+
+    async def cleanup(self):
+        """Cleanup resources."""
+        if self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
 
 
 # Global service instance

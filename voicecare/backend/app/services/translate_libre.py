@@ -66,14 +66,15 @@ class TranslationService:
             # Create translator for specific language pair
             translator = GoogleTranslator(source=source_lang, target=target_lang)
             result = translator.translate(text)
+            logger.info(f"Google Translate: '{text[:30]}...' ({source_lang}->{target_lang}) = '{result[:30]}...'")
             return result if result else None
         except Exception as e:
             logger.error(f"Google Translate API error: {e}")
             return None
     
     def _normalize_lang_code(self, lang_code: str) -> str:
-        """Normalize language code to 2-letter format."""
-        # Convert BCP-47 to simple 2-letter codes
+        """Normalize language code to Google Translate format."""
+        # Convert BCP-47 to Google Translate supported codes
         lang_map = {
             "en-US": "en",
             "en-GB": "en", 
@@ -85,7 +86,9 @@ class TranslationService:
             "pt-BR": "pt",
             "pt-PT": "pt",
             "ru-RU": "ru",
-            "zh-CN": "zh",
+            "zh-CN": "zh-CN",  # Keep as zh-CN for Google Translate
+            "zh-TW": "zh-TW",  # Keep as zh-TW for Google Translate
+            "zh": "zh-CN",     # Map generic zh to zh-CN (Simplified Chinese)
             "ja-JP": "ja",
             "ko-KR": "ko",
             "ar-SA": "ar"
@@ -93,6 +96,15 @@ class TranslationService:
         
         # Return mapped code or extract base language
         base_lang = lang_map.get(lang_code, lang_code.split("-")[0])
+        
+        # Special handling for Chinese - default to Simplified
+        if base_lang.lower() == "zh":
+            return "zh-CN"
+        
+        # Keep specific codes as-is (like zh-CN, zh-TW) with exact case
+        if "-" in base_lang and base_lang.upper() in ["ZH-CN", "ZH-TW"]:
+            return base_lang  # Keep original case
+        
         return base_lang.lower()
     
     def _fallback_translate(self, text: str, source_lang: str, target_lang: str) -> str:
@@ -101,6 +113,8 @@ class TranslationService:
             return f"[Traducido] {text}"
         elif target_lang == "en":
             return f"[Translated] {text}"
+        elif target_lang in ["zh", "zh-CN", "zh-TW"]:
+            return f"[中文] {text}"
         else:
             return f"[{target_lang.upper()}] {text}"
     
