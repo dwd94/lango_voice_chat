@@ -110,10 +110,10 @@ export default function MessageBubble({
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return 'text-red-400'
-      case 'nurse': return 'text-blue-400'
-      case 'patient': return 'text-green-400'
-      default: return 'text-purple-400'
+      case 'admin': return 'text-rose-500'
+      case 'nurse': return 'text-sky-600'
+      case 'patient': return 'text-emerald-500'
+      default: return 'text-indigo-500'
     }
   }
 
@@ -135,8 +135,8 @@ export default function MessageBubble({
       <div className={`
         max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg
         ${isOwnMessage 
-          ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white ml-12' 
-          : 'glass-card text-white mr-12'
+          ? 'bg-gradient-to-br from-indigo-500 via-indigo-400 to-blue-500 text-white ml-12' 
+          : 'glass-card text-slate-900 mr-12'
         }
         transform transition-all duration-300 hover:scale-[1.02]
       `}>
@@ -144,8 +144,8 @@ export default function MessageBubble({
         {!isOwnMessage && (
           <div className="flex items-center space-x-2 mb-2">
             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
-              message.sender_role === 'admin' ? 'bg-red-500' :
-              message.sender_role === 'nurse' ? 'bg-blue-500' : 'bg-green-500'
+              message.sender_role === 'admin' ? 'bg-rose-200 text-rose-700' :
+              message.sender_role === 'nurse' ? 'bg-sky-200 text-sky-700' : 'bg-emerald-200 text-emerald-700'
             }`}>
               {message.sender_name.split(' ').map(n => n[0]).join('')}
             </div>
@@ -159,7 +159,7 @@ export default function MessageBubble({
         {/* Language Translation Badge */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+            <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
               {isOwnMessage 
                 ? message.source_lang.toUpperCase()  // Sender sees source language
                 : message.target_lang.toUpperCase()  // Recipient sees target language
@@ -178,7 +178,7 @@ export default function MessageBubble({
                   onPlayAudio?.('generate', message.id)
                 }
               }}
-              className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center hover:bg-indigo-200 transition-colors"
               title={message.audio_url ? 'Play audio' : 'Generate and play audio'}
             >
               <Volume2 className="w-3 h-3" />
@@ -188,10 +188,10 @@ export default function MessageBubble({
 
         {/* Audio Player (if audio available) */}
         {message.audio_url && (
-          <div className="flex items-center space-x-3 mb-3 p-3 bg-white/10 rounded-xl">
+          <div className="flex items-center space-x-3 mb-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
             <button
               onClick={handlePlayPause}
-              className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-10 h-10 rounded-full bg-white text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition-colors border border-indigo-100"
             >
               {isPlaying ? (
                 <Pause className="w-5 h-5" />
@@ -203,14 +203,14 @@ export default function MessageBubble({
             {/* Waveform/Progress Bar */}
             <div className="flex-1">
               <div className="flex items-center space-x-2">
-                <Volume2 className="w-4 h-4" />
-                <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+                <Volume2 className="w-4 h-4 text-indigo-500" />
+                <div className="flex-1 h-1 bg-indigo-100 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-white transition-all duration-100"
+                    className="h-full bg-indigo-500 transition-all duration-100"
                     style={{ width: `${playbackProgress}%` }}
                   />
                 </div>
-                <span className="text-xs">
+                <span className="text-xs text-indigo-600">
                   {formatDuration(message.duration)}
                 </span>
               </div>
@@ -232,7 +232,7 @@ export default function MessageBubble({
 
         {/* Message Footer */}
         <div className={`flex items-center justify-between mt-2 text-xs ${
-          isOwnMessage ? 'text-purple-200' : 'text-purple-300'
+          isOwnMessage ? 'text-indigo-100' : 'text-indigo-500'
         }`}>
           <span>{formatTime(message.created_at)}</span>
           {isOwnMessage && (

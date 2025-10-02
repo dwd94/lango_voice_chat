@@ -170,7 +170,7 @@ export default function AudioRecorder({
         
         {/* Recording pulse ring */}
         {isRecording && (
-          <div className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-30" />
+          <div className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-30 pointer-events-none" />
         )}
       </button>
 
@@ -179,12 +179,12 @@ export default function AudioRecorder({
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-white font-medium">
+            <span className="text-indigo-900 font-medium">
               {isInitializing ? 'Initializing...' : formatDuration(duration)}
             </span>
           </div>
           {isRecording && (
-            <div className="text-purple-200 text-sm">
+            <div className="text-indigo-600 text-sm">
               {maxDuration - duration}s left
             </div>
           )}

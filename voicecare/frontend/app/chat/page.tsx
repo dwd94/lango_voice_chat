@@ -743,20 +743,20 @@ export default function ChatPage() {
     : 'Demo Mode'
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-white via-indigo-50 to-blue-100 text-slate-900">
       {/* Header */}
-      <div className="glass-card border-b border-white/10">
+      <div className="glass-card border-b border-indigo-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <Link href="/" className="text-2xl font-bold text-white">
-                Voice<span className="text-purple-300">Care</span>
+              <Link href="/" className="text-2xl font-bold text-indigo-900">
+                Voice<span className="text-indigo-500">Care</span>
               </Link>
               
               {activeConversation && (
                 <div className="flex items-center space-x-2">
-                  <Users className="w-5 h-5 text-purple-300" />
-                  <span className="text-white">
+                  <Users className="w-5 h-5 text-indigo-500" />
+                  <span className="text-indigo-700">
                     {getOtherParticipant(activeConversation)?.name}
                   </span>
                 </div>
@@ -768,17 +768,17 @@ export default function ChatPage() {
               <div className="flex items-center space-x-2">
                 {useWebSocketMode ? (
                   isConnected ? (
-                    <Wifi className="w-5 h-5 text-green-400" />
+                    <Wifi className="w-5 h-5 text-emerald-500" />
                   ) : (
-                    <WifiOff className="w-5 h-5 text-red-400" />
+                    <WifiOff className="w-5 h-5 text-rose-500" />
                   )
                 ) : (
-                  <AlertCircle className="w-5 h-5 text-yellow-400" />
+                  <AlertCircle className="w-5 h-5 text-amber-500" />
                 )}
                 <span className={`text-sm ${
                   useWebSocketMode 
-                    ? (isConnected ? 'text-green-400' : 'text-red-400')
-                    : 'text-yellow-400'
+                    ? (isConnected ? 'text-emerald-600' : 'text-rose-500')
+                    : 'text-amber-600'
                 }`}>
                   {connectionStatus}
                 </span>
@@ -787,7 +787,7 @@ export default function ChatPage() {
               {/* WebSocket Toggle */}
               <button
                 onClick={toggleWebSocketMode}
-                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded"
+                className="text-xs bg-white border border-indigo-100 hover:bg-indigo-50 px-2 py-1 rounded shadow-sm"
                 title={useWebSocketMode ? 'Switch to Demo Mode' : 'Switch to Real-time Mode'}
               >
                 {useWebSocketMode ? 'Real-time' : 'Demo'}
@@ -796,8 +796,8 @@ export default function ChatPage() {
               {/* Audio Toggle */}
               <button
                 onClick={() => setIsMuted(!isMuted)}
-                className={`p-2 rounded-lg transition-colors ${
-                  isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white'
+                className={`p-2 rounded-lg transition-colors border border-indigo-100 ${
+                  isMuted ? 'bg-rose-100 text-rose-600' : 'bg-white text-indigo-600'
                 }`}
                 title={isMuted ? 'Unmute audio' : 'Mute audio'}
               >
@@ -808,26 +808,26 @@ export default function ChatPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowUserSwitcher(!showUserSwitcher)}
-                  className="text-xs bg-blue-500/20 hover:bg-blue-500/30 px-2 py-1 rounded text-blue-300"
+                  className="text-xs bg-indigo-100 hover:bg-indigo-200 px-2 py-1 rounded text-indigo-600 border border-indigo-200"
                   title="Switch User (Testing)"
                 >
                   Switch User
                 </button>
                 
                 {showUserSwitcher && (
-                  <div className="absolute top-full right-0 mt-2 bg-navy-900/95 backdrop-blur border border-indigo-500/30 rounded-lg shadow-lg z-50 min-w-[240px]">
+                  <div className="absolute top-full right-0 mt-2 bg-white border border-indigo-100 rounded-lg shadow-lg z-50 min-w-[240px]">
                     <div className="p-2 space-y-1 max-h-80 overflow-auto">
                       {availableUsers.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-purple-200">No other users found</div>
+                        <div className="px-3 py-2 text-sm text-indigo-500">No other users found</div>
                       ) : (
                         availableUsers.map(u => (
                           <button
                             key={u.id}
                             onClick={() => switchUser(u)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded text-white flex items-center justify-between"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 rounded text-slate-900 flex items-center justify-between"
                           >
                             <span>{u.name}</span>
-                            <span className="text-xs text-purple-200 capitalize">{u.role}</span>
+                            <span className="text-xs text-indigo-500 capitalize">{u.role}</span>
                           </button>
                         ))
                       )}
@@ -839,25 +839,25 @@ export default function ChatPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowStartChat(!showStartChat)}
-                  className="text-xs bg-green-500/20 hover:bg-green-500/30 px-2 py-1 rounded text-green-300 ml-2"
+                  className="text-xs bg-emerald-100 hover:bg-emerald-200 px-2 py-1 rounded text-emerald-600 border border-emerald-200 ml-2"
                   title="Start Chat With"
                 >
                   New Chat
                 </button>
                 {showStartChat && (
-                  <div className="absolute top-full right-0 mt-2 bg-navy-900/95 backdrop-blur border border-indigo-500/30 rounded-lg shadow-lg z-50 min-w-[260px]">
+                  <div className="absolute top-full right-0 mt-2 bg-white border border-indigo-100 rounded-lg shadow-lg z-50 min-w-[260px]">
                     <div className="p-2 space-y-1 max-h-80 overflow-auto">
                       {availableUsers.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-purple-200">No users available</div>
+                        <div className="px-3 py-2 text-sm text-indigo-500">No users available</div>
                       ) : (
                         availableUsers.map(u => (
                           <button
                             key={u.id}
                             onClick={() => startConversationWith(u)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 rounded text-white flex items-center justify-between"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 rounded text-slate-900 flex items-center justify-between"
                           >
                             <span>{u.name}</span>
-                            <span className="text-xs text-purple-200 capitalize">{u.role}</span>
+                            <span className="text-xs text-indigo-500 capitalize">{u.role}</span>
                           </button>
                         ))
                       )}
@@ -868,15 +868,15 @@ export default function ChatPage() {
 
               {/* User Info */}
               <div className="flex items-center space-x-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm ${
-                  user.role === 'admin' ? 'bg-red-500' :
-                  user.role === 'nurse' ? 'bg-blue-500' : 'bg-green-500'
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                  user.role === 'admin' ? 'bg-rose-200 text-rose-700' :
+                  user.role === 'nurse' ? 'bg-sky-200 text-sky-700' : 'bg-emerald-200 text-emerald-700'
                 }`}>
                   {user.name.split(' ').map(n => n[0]).join('')}
                 </div>
-                <div className="text-white">
-                  <div className="font-medium">{user.name}</div>
-                  <div className="text-xs text-purple-200">{user.role}</div>
+                <div>
+                  <div className="font-medium text-indigo-900">{user.name}</div>
+                  <div className="text-xs text-indigo-500 capitalize">{user.role}</div>
                 </div>
               </div>
 
@@ -899,16 +899,16 @@ export default function ChatPage() {
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <div className="text-6xl mb-4">💬</div>
-                <h3 className="text-xl font-semibold text-white mb-2">
+                <h3 className="text-xl font-semibold text-indigo-900 mb-2">
                   Start Your Conversation
                 </h3>
-                <p className="text-purple-100 mb-6">
+                <p className="text-indigo-600 mb-6">
                   Press the microphone to record your voice message.
                   <br />
                   It will be automatically translated for your recipient.
                 </p>
-                <div className="bg-purple-500/20 border border-purple-500/30 rounded-xl p-4 max-w-md mx-auto">
-                  <div className="text-sm text-purple-100">
+                <div className="bg-indigo-100/70 border border-indigo-200 rounded-xl p-4 max-w-md mx-auto">
+                  <div className="text-sm text-indigo-700">
                     <strong>Your language:</strong> {user.preferred_lang.toUpperCase()}
                     <br />
                     <strong>Translation:</strong> Automatic
@@ -955,22 +955,22 @@ export default function ChatPage() {
         {error && (
           <div className={`rounded-xl p-4 mb-4 ${
             error.includes('Demo mode') 
-              ? 'bg-blue-500/20 border border-blue-500/30'
-              : 'bg-red-500/20 border border-red-500/30'
+              ? 'bg-indigo-100 border border-indigo-200'
+              : 'bg-rose-100 border border-rose-200'
           }`}>
-            <p className={error.includes('Demo mode') ? 'text-blue-300' : 'text-red-300'}>
+            <p className={error.includes('Demo mode') ? 'text-indigo-700' : 'text-rose-600'}>
               {error}
             </p>
           </div>
         )}
 
         {/* Recording Area */}
-        <div className="py-6 border-t border-white/10">
+        <div className="py-6 border-t border-indigo-100">
           <div className="flex justify-center">
             {isTranscribing ? (
               <div className="flex items-center space-x-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
-                <span className="text-white">Processing voice message...</span>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div>
+                <span className="text-indigo-700">Processing voice message...</span>
               </div>
             ) : (
               <AudioRecorder
@@ -986,19 +986,19 @@ export default function ChatPage() {
           {/* Recording Instructions */}
           {!isRecording && !isTranscribing && (
             <div className="text-center mt-4">
-              <p className="text-purple-100 text-sm">
+              <p className="text-indigo-600 text-sm">
                 {useWebSocketMode 
                   ? (isConnected 
                       ? 'Press the microphone to start recording'
                       : 'WebSocket disconnected - using demo mode'
                     )
                   : 'Demo mode - STT and translation only'
-                }
+              }
               </p>
               {user.role === 'admin' && (
                 <Link
                   href="/admin"
-                  className="text-purple-300 hover:text-purple-200 text-sm underline mt-2 inline-block"
+                  className="text-indigo-600 hover:text-indigo-500 text-sm underline mt-2 inline-block"
                 >
                   Go to Admin Dashboard
                 </Link>
