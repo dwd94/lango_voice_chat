@@ -25,6 +25,8 @@ export default function SimpleChatPage() {
   const [showLanguageSelector, setShowLanguageSelector] = useState(false)
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null)
   const [connectionRetries, setConnectionRetries] = useState(0)
+  const [useParallelMode, setUseParallelMode] = useState(true) // Enable parallel mode by default
+  const [processingStage, setProcessingStage] = useState<string>('')
   
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -93,7 +95,8 @@ export default function SimpleChatPage() {
   }, [isRecording, maxRecordingTime])
 
   const connectWebSocket = () => {
-    const ws = new WebSocket('ws://localhost:8000/ws')
+    const wsUrl = useParallelMode ? 'ws://localhost:8000/ws/parallel' : 'ws://localhost:8000/ws'
+    const ws = new WebSocket(wsUrl)
     
     ws.onopen = () => {
       setIsConnected(true)
@@ -105,7 +108,67 @@ export default function SimpleChatPage() {
       try {
         const data = JSON.parse(event.data)
         
-        if (data.type === 'translation') {
+        if (data.type === 'processing_started') {
+          console.log('Processing started:', data.data.stage)
+          setIsProcessing(true)
+          setProcessingStage(data.data.stage)
+        } else if (data.type === 'processing_update') {
+          console.log('Processing update:', data.data.stage)
+          setProcessingStage(data.data.stage)
+          // Keep processing indicator active
+        } else if (data.type === 'stt_result') {
+          console.log('STT result received:', data.data.original_text)
+          // Show STT result immediately
+          const sttMessage: Message = {
+            id: data.data.message_id,
+            text: data.data.original_text,
+            translated_text: 'Translating...',
+            audio_url: undefined,
+            is_sender: true,
+            timestamp: new Date().toLocaleTimeString()
+          }
+          setMessages(prev => [...prev, sttMessage])
+        } else if (data.type === 'translation_result') {
+          console.log('Translation result received:', data.data.translated_text)
+          // Update the message with translation
+          setMessages(prev => prev.map(msg => 
+            msg.id === data.data.message_id 
+              ? { ...msg, translated_text: data.data.translated_text }
+              : msg
+          ))
+        } else if (data.type === 'translation_complete') {
+          console.log('Translation complete:', data.data)
+          const newMessage: Message = {
+            id: data.data.message_id,
+            text: data.data.original_text || 'Voice message',
+            translated_text: data.data.translated_text,
+            audio_url: data.data.audio_url,
+            is_sender: true,
+            timestamp: new Date().toLocaleTimeString()
+          }
+          
+          // Update existing message or add new one
+          setMessages(prev => {
+            const existingIndex = prev.findIndex(msg => msg.id === data.data.message_id)
+            if (existingIndex !== -1) {
+              const updated = [...prev]
+              updated[existingIndex] = newMessage
+              return updated
+            } else {
+              return [...prev, newMessage]
+            }
+          })
+          
+          setIsProcessing(false) // Stop processing indicator
+          
+          // Auto-play the translated audio if available
+          if (data.data.audio_url) {
+            setTimeout(() => {
+              playAudio(data.data.audio_url)
+            }, 500) // Small delay to ensure message is rendered
+          }
+        } else if (data.type === 'translation') {
+          // Backward compatibility with old format
           const newMessage: Message = {
             id: data.data.message_id,
             text: data.data.original_text || 'Voice message',
@@ -449,6 +512,20 @@ export default function SimpleChatPage() {
               </span>
             </div>
             
+            {/* Parallel Mode Toggle */}
+            <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-white border border-indigo-100 shadow-sm">
+              <input
+                type="checkbox"
+                id="parallel-mode"
+                checked={useParallelMode}
+                onChange={(e) => setUseParallelMode(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <label htmlFor="parallel-mode" className="text-sm font-medium text-indigo-700">
+                Parallel Mode
+              </label>
+            </div>
+            
             {/* Language Toggle */}
             <button
               onClick={() => setShowLanguageSelector(!showLanguageSelector)}
@@ -629,7 +706,7 @@ export default function SimpleChatPage() {
               <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-600">
                 <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />
                 <span className="text-xs font-medium">
-                  Processing...
+                  {processingStage ? `Processing: ${processingStage.replace('_', ' ')}` : 'Processing...'}
                 </span>
               </div>
             )}
