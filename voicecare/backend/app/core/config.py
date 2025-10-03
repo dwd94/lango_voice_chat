@@ -13,14 +13,14 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./voicecare.db"
     
     # Server
-    app_host: str = "127.0.0.1"
+    app_host: str = "0.0.0.0"
     app_port: int = 8000
     
     # External services
     libre_translate_url: str = "https://libretranslate.com/translate"
     
     # CORS
-    cors_origins: str = '["http://localhost:3000"]'
+    cors_origins: str = '["http://localhost:3000", "http://frontend:3000"]'
     
     # Voice Settings
     max_voice_seconds: int = 120
