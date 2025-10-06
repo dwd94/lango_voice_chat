@@ -50,7 +50,6 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [isRecording, setIsRecording] = useState(false)
-  const [isTranscribing, setIsTranscribing] = useState(false)
   const isTranscribingRef = useRef(false)
   const [currentlyPlayingAudio, setCurrentlyPlayingAudio] = useState<HTMLAudioElement | null>(null)
   const [isMuted, setIsMuted] = useState(false)
@@ -339,15 +338,15 @@ export default function ChatPage() {
         return [...prev, newMessage]
       })
 
-      // Generate TTS audio URL for the message and auto-play if not muted
+      // Generate TTS audio URL for the message
       if (message.play_now) {
-        console.log(`Auto-playing TTS: "${message.play_now.text}" in ${message.play_now.lang}`)
-        generateTTSAudio(message.play_now.text, message.play_now.lang, newMessage.id, !isMuted, message.play_now.sender_gender, message.play_now.sender_id)
+        console.log(`Generating TTS: "${message.play_now.text}" in ${message.play_now.lang}`)
+        generateTTSAudio(message.play_now.text, message.play_now.lang, newMessage.id, message.play_now.sender_gender, message.play_now.sender_id)
       }
     }
   }
 
-  const generateTTSAudio = async (text: string, language: string, messageId: string, autoPlay: boolean = false, senderGender?: string, senderId?: string) => {
+  const generateTTSAudio = async (text: string, language: string, messageId: string, senderGender?: string, senderId?: string) => {
     try {
       const response = await fetch('/api/v1/tts/speak', {
         method: 'POST',
@@ -393,10 +392,7 @@ export default function ChatPage() {
             : msg
         ))
 
-        // Auto-play if requested
-        if (autoPlay) {
-          playAudioFromUrl(audioUrl, messageId)
-        }
+        // Audio generated successfully
         
         console.log(`Generated TTS audio for message ${messageId}: ${audioBlob.size} bytes`)
       } else {
@@ -434,8 +430,9 @@ export default function ChatPage() {
   }
 
   const playTTSAudio = async (text: string, language: string, messageId: string) => {
-    // This function is now just a wrapper for generateTTSAudio with autoPlay
-    await generateTTSAudio(text, language, messageId, true, undefined, undefined)
+    // Generate TTS audio and then play it manually
+    await generateTTSAudio(text, language, messageId, undefined, undefined)
+    // Note: Audio will be played via the MessageBubble component's play button
   }
 
   const startConversationWith = async (other: User) => {
@@ -493,12 +490,11 @@ export default function ChatPage() {
     }
 
     isTranscribingRef.current = true
-    setIsTranscribing(true)
     setError('')
 
     // Set a timeout to ensure transcribing state is reset
     const transcribingTimeout = setTimeout(() => {
-      setIsTranscribing(false)
+      isTranscribingRef.current = false
     }, 30000) // 30 second timeout
 
     try {
@@ -664,7 +660,6 @@ export default function ChatPage() {
     } finally {
       clearTimeout(transcribingTimeout)
       isTranscribingRef.current = false
-      setIsTranscribing(false)
     }
   }, [user, activeConversation, useWebSocketMode, isConnected, sendWebSocketMessage])
 
@@ -967,24 +962,17 @@ export default function ChatPage() {
         {/* Recording Area */}
         <div className="py-6 border-t border-indigo-100">
           <div className="flex justify-center">
-            {isTranscribing ? (
-              <div className="flex items-center space-x-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div>
-                <span className="text-indigo-700">Processing voice message...</span>
-              </div>
-            ) : (
-              <AudioRecorder
-                onRecordingComplete={handleRecordingComplete}
-                onRecordingStart={onRecordingStart}
-                onRecordingStop={onRecordingStop}
-                disabled={!activeConversation || isTranscribing}
-                maxDuration={120}
-              />
-            )}
+            <AudioRecorder
+              onRecordingComplete={handleRecordingComplete}
+              onRecordingStart={onRecordingStart}
+              onRecordingStop={onRecordingStop}
+              disabled={!activeConversation || isTranscribingRef.current}
+              maxDuration={120}
+            />
           </div>
 
           {/* Recording Instructions */}
-          {!isRecording && !isTranscribing && (
+          {!isRecording && !isTranscribingRef.current && (
             <div className="text-center mt-4">
               <p className="text-indigo-600 text-sm">
                 {useWebSocketMode 

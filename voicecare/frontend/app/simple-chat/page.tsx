@@ -21,13 +21,11 @@ export default function SimpleChatPage() {
   const [targetLang, setTargetLang] = useState('es')
   const [isPlaying, setIsPlaying] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
-  const [isProcessing, setIsProcessing] = useState(false)
   const [maxRecordingTime] = useState(30) // Maximum 30 seconds (reduced for stability)
   const [showLanguageSelector, setShowLanguageSelector] = useState(false)
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null)
   const [connectionRetries, setConnectionRetries] = useState(0)
   const [useParallelMode, setUseParallelMode] = useState(true) // Enable parallel mode by default
-  const [processingStage, setProcessingStage] = useState<string>('')
   
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -37,21 +35,21 @@ export default function SimpleChatPage() {
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const languages = [
-    { code: 'en', name: 'English', flag: '🇺🇸' },
-    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-    { code: 'fr', name: 'French', flag: '🇫🇷' },
-    { code: 'de', name: 'German', flag: '🇩🇪' },
-    { code: 'it', name: 'Italian', flag: '🇮🇹' },
-    { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
-    { code: 'ru', name: 'Russian', flag: '🇷🇺' },
-    { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
-    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-    { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
-    { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
-    { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
-    { code: 'tr', name: 'Turkish', flag: '🇹🇷' },
-    { code: 'pl', name: 'Polish', flag: '🇵🇱' },
-    { code: 'nl', name: 'Dutch', flag: '🇳🇱' }
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'it', name: 'Italian' },
+    { code: 'pt', name: 'Portuguese' },
+    { code: 'ru', name: 'Russian' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'ar', name: 'Arabic' },
+    { code: 'hi', name: 'Hindi' },
+    { code: 'tr', name: 'Turkish' },
+    { code: 'pl', name: 'Polish' },
+    { code: 'nl', name: 'Dutch' }
   ]
 
   useEffect(() => {
@@ -111,12 +109,10 @@ export default function SimpleChatPage() {
         
         if (data.type === 'processing_started') {
           console.log('Processing started:', data.data.stage)
-          setIsProcessing(true)
-          setProcessingStage(data.data.stage)
+          // Processing started - no UI indicator needed
         } else if (data.type === 'processing_update') {
           console.log('Processing update:', data.data.stage)
-          setProcessingStage(data.data.stage)
-          // Keep processing indicator active
+          // Processing update - no UI indicator needed
         } else if (data.type === 'stt_result') {
           console.log('STT result received:', data.data.original_text)
           // Show STT result immediately
@@ -162,15 +158,7 @@ export default function SimpleChatPage() {
             }
           })
           
-          setIsProcessing(false) // Stop processing indicator
-          
-          // Auto-play the translated audio if available
-          const audioUrl = data.data.audio_url || data.data.audio_url_translated
-          if (audioUrl) {
-            setTimeout(() => {
-              playAudio(audioUrl)
-            }, 500) // Small delay to ensure message is rendered
-          }
+          // Processing complete
         } else if (data.type === 'translation') {
           // Backward compatibility with old format
           const newMessage: Message = {
@@ -184,29 +172,19 @@ export default function SimpleChatPage() {
           }
           
           setMessages(prev => [...prev, newMessage])
-          setIsProcessing(false) // Stop processing indicator
-          
-          // Auto-play the translated audio if available
-          const audioUrl = data.data.audio_url || data.data.audio_url_translated
-          if (audioUrl) {
-            setTimeout(() => {
-              playAudio(audioUrl)
-            }, 500) // Small delay to ensure message is rendered
-          }
+          // Processing complete
         } else if (data.type === 'error') {
           console.error('Translation error:', data.message)
           alert(`Translation error: ${data.message}`)
-          setIsProcessing(false) // Stop processing indicator on error
+          // Processing complete on error
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error)
-        setIsProcessing(false)
       }
     }
     
     ws.onclose = (event) => {
       setIsConnected(false)
-      setIsProcessing(false)
       console.log('Disconnected from WebSocket:', event.code, event.reason)
       
       // Try to reconnect for any non-normal closure
@@ -224,7 +202,6 @@ export default function SimpleChatPage() {
     ws.onerror = (error) => {
       console.error('WebSocket error:', error)
       setIsConnected(false)
-      setIsProcessing(false)
       
       // Try to reconnect on error
       console.log('WebSocket error, attempting to reconnect in 3 seconds...')
@@ -382,8 +359,7 @@ export default function SimpleChatPage() {
     }
 
     try {
-      // Show processing indicator
-      setIsProcessing(true)
+      // Start processing
       
       // Validate audio blob before processing
       if (audioBlob.size > 10 * 1024 * 1024) { // 10MB limit (reduced for stability)
@@ -422,7 +398,6 @@ export default function SimpleChatPage() {
       console.error('Error sending audio message:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       alert(`Error sending audio message: ${errorMessage}`)
-      setIsProcessing(false) // Stop processing indicator on error
     }
   }
 
@@ -431,8 +406,8 @@ export default function SimpleChatPage() {
     event.stopPropagation()
     
     console.log('🎤 Recording button clicked!')
-    console.log('Current state:', { isRecording, isProcessing, isConnected })
-    console.log('Button disabled:', !isConnected || isProcessing)
+    console.log('Current state:', { isRecording, isConnected })
+    console.log('Button disabled:', !isConnected)
 
     if (isRecording) {
       console.log('🛑 Stopping recording...')
@@ -440,9 +415,9 @@ export default function SimpleChatPage() {
       return
     }
 
-    // Prevent starting a new recording while processing or disconnected
-    if (isProcessing || !isConnected) {
-      console.log('❌ Cannot start - processing or not connected')
+    // Prevent starting a new recording while disconnected
+    if (!isConnected) {
+      console.log('❌ Cannot start - not connected')
       return
     }
 
@@ -559,7 +534,7 @@ export default function SimpleChatPage() {
               >
                 {languages.map(lang => (
                   <option key={lang.code} value={lang.code} className="bg-white text-slate-900">
-                    {lang.flag} {lang.name}
+                    {lang.name}
                   </option>
                 ))}
               </select>
@@ -577,7 +552,7 @@ export default function SimpleChatPage() {
               >
                 {languages.map(lang => (
                   <option key={lang.code} value={lang.code} className="bg-white text-slate-900">
-                    {lang.flag} {lang.name}
+                    {lang.name}
                   </option>
                 ))}
               </select>
@@ -611,9 +586,9 @@ export default function SimpleChatPage() {
               <h3 className="text-xl font-semibold text-indigo-900 mb-2">Start Your Conversation</h3>
               <p className="text-indigo-600 mb-4">Record a voice message to begin translating</p>
               <div className="flex items-center justify-center space-x-2 text-sm text-indigo-500">
-                <span>{getLanguageByCode(sourceLang)?.flag} {getLanguageByCode(sourceLang)?.name}</span>
+                <span>{getLanguageByCode(sourceLang)?.name}</span>
                 <span>→</span>
-                <span>{getLanguageByCode(targetLang)?.flag} {getLanguageByCode(targetLang)?.name}</span>
+                <span>{getLanguageByCode(targetLang)?.name}</span>
               </div>
             </div>
           )}
@@ -632,7 +607,7 @@ export default function SimpleChatPage() {
                       <div className="flex items-center justify-between mt-2">
                         <p className="text-xs text-slate-500">{message.timestamp}</p>
                         <div className="flex items-center space-x-1">
-                          <span className="text-xs text-slate-500">{getLanguageByCode(sourceLang)?.flag}</span>
+                          <span className="text-xs text-slate-500">{getLanguageByCode(sourceLang)?.name}</span>
                         </div>
                       </div>
                     </div>
@@ -652,7 +627,7 @@ export default function SimpleChatPage() {
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center space-x-2">
                           <p className="text-xs text-slate-500">{message.timestamp}</p>
-                          <span className="text-xs text-slate-500">{getLanguageByCode(targetLang)?.flag}</span>
+                          <span className="text-xs text-slate-500">{getLanguageByCode(targetLang)?.name}</span>
                         </div>
                         {message.audio_url && (
                           <button
@@ -707,26 +682,15 @@ export default function SimpleChatPage() {
               </div>
             )}
             
-            {/* Processing Status */}
-            {isProcessing && (
-              <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-600">
-                <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />
-                <span className="text-xs font-medium">
-                  {processingStage ? `Processing: ${processingStage.replace('_', ' ')}` : 'Processing...'}
-                </span>
-              </div>
-            )}
 
             {/* Enhanced Voice Recording Button */}
             <div className="relative">
               <button
                 onClick={handleRecordingClick}
-                disabled={isProcessing || (!isRecording && !isConnected)}
+                disabled={!isRecording && !isConnected}
                 className={`w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${
                   isRecording 
                     ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 animate-recording-pulse neon-glow-strong' 
-                    : isProcessing
-                    ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 neon-glow animate-float'
                 } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
               >
@@ -744,8 +708,6 @@ export default function SimpleChatPage() {
               <p className="text-xs text-indigo-600">
                 {isRecording 
                   ? 'Tap to stop recording' 
-                  : isProcessing
-                  ? 'Processing your audio...'
                   : 'Tap to start recording'
                 }
               </p>
