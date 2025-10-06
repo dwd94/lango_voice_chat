@@ -35,6 +35,7 @@ class UserResponse(BaseModel):
     name: str
     role: UserRole
     gender: Optional[str]
+    tts_gender: Optional[str]
     preferred_lang: str
     preferred_voice: Optional[str]
     created_at: datetime

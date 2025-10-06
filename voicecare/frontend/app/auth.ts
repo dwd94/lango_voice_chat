@@ -7,6 +7,7 @@ export interface User {
   name: string;
   role: string;
   gender?: string;
+  tts_gender?: string;
   preferred_lang: string;
   preferred_voice?: string;
   created_at?: string;

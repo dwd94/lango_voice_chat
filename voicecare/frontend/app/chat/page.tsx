@@ -26,7 +26,10 @@ interface User {
   id: string
   name: string
   role: string
+  gender?: string
+  tts_gender?: string
   preferred_lang: string
+  preferred_voice?: string
 }
 
 interface Message {
@@ -34,6 +37,7 @@ interface Message {
   sender_id: string
   sender_name: string
   sender_role: string
+  sender_gender?: string
   text_source: string
   text_translated: string | null
   source_lang: string
@@ -379,6 +383,7 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
           sender_id: m.sender_id,
           sender_name: m.sender?.name || 'Unknown',
           sender_role: m.sender?.role || 'user',
+          sender_gender: m.sender?.gender,
           text_source: m.text_source,
           // For sender's own messages, don't show translated text
           // For received messages, show translated text
@@ -412,6 +417,7 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
         sender_id: message.message.sender_id,
         sender_name: message.message.sender?.name || 'Unknown',
         sender_role: message.message.sender?.role || 'user',
+        sender_gender: message.message.sender?.gender || message.play_now?.sender_gender,
         text_source: message.message.text_source,
         // For sender's own messages, don't show translated text
         // For received messages, show translated text
@@ -452,15 +458,13 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
         const textToSpeak = message.message.text_translated || message.message.text_source;
         const langToUse = user?.preferred_lang || 'en';
         const voiceUserId = message.message.sender_id; // Use sender's voice
-        const shouldAutoPlay = !isMuted; // Auto-play if not muted
-        
-        // Generate TTS audio (will auto-play if not muted)
+        // Generate TTS audio and cache it for manual playback
         generateTTSAudio(
           textToSpeak, 
           langToUse, 
           newMessage.id, 
-          shouldAutoPlay,
-          undefined, // Let the backend choose the voice
+          false,
+          message.play_now?.sender_gender || message.message.sender?.gender,
           voiceUserId
         ).catch(error => {
           console.error('Error generating TTS audio for received message:', error);
@@ -473,7 +477,7 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
           message.message.source_lang,
           newMessage.id,
           false, // Don't auto-play (already played during send)
-          undefined,
+          user?.tts_gender || user?.gender,
           user?.id
         ).catch(error => {
           console.error('Error ensuring TTS for own message:', error);
@@ -652,6 +656,7 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
           sender_id: user.id,
           sender_name: user.name,
           sender_role: user.role,
+          sender_gender: user.tts_gender || user.gender,
           text_source: transcribedText,
           text_translated: null, // Sender sees original text only
           source_lang: detectedLang,
@@ -664,14 +669,13 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
         setMessages(prev => [...prev, tempMessage])
 
         // Generate TTS for the sent message in the original language
-        // This is what the sender will hear when they tap play
-        // We use autoPlay=true to play it immediately after generation
+        // This primes playback so the sender can tap play without delay
         generateTTSAudio(
           transcribedText, 
           detectedLang, 
           tempMessage.id, 
-          true, // Auto-play for sender
-          undefined, 
+          false,
+          user.tts_gender || user.gender, 
           user.id
         ).catch(error => {
           console.error('Error generating sender TTS:', error);
@@ -749,7 +753,12 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
 
                   // Generate TTS for the translated message (for recipient)
                   // First generate TTS for the recipient
-                  await generateTTSAudio(translatedText, targetLang, tempMessage.id, false, undefined, undefined);
+                  await generateTTSAudio(
+                    translatedText,
+                    targetLang,
+                    tempMessage.id,
+                    false
+                  );
                   
                   // Then generate TTS for the sender in their preferred language
                   if (user) {
@@ -758,8 +767,8 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
                       transcribedText, // Original text
                       user.preferred_lang, // Sender's preferred language
                       tempMessage.id, 
-                      true, // Auto-play for sender
-                      undefined, 
+                      false,
+                      user.tts_gender || user.gender, 
                       user.id // Sender's ID for consistent voice
                     );
                   }
@@ -809,7 +818,7 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
               user.preferred_lang, // Use user's preferred language
               messageId, 
               true, 
-              undefined, 
+              user.tts_gender || user.gender, 
               user.id
             )
           } else {
@@ -820,15 +829,22 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
               user.preferred_lang, // Use current user's preferred language
               messageId, 
               true, 
-              undefined, 
-              user.id
+              message.sender_gender,
+              message.sender_id
             )
           }
         } else {
           // Fallback if user is not available
           const textToSpeak = message.text_translated || message.text_source
           const targetLang = message.target_lang
-          generateTTSAudio(textToSpeak, targetLang, messageId, true, undefined, undefined)
+          generateTTSAudio(
+            textToSpeak,
+            targetLang,
+            messageId,
+            true,
+            message.sender_gender,
+            message.sender_id
+          )
         }
       }
     } else {

@@ -8,6 +8,7 @@ interface Message {
   sender_id: string
   sender_name: string
   sender_role: string
+  sender_gender?: string
   text_source: string
   text_translated: string | null
   source_lang: string
