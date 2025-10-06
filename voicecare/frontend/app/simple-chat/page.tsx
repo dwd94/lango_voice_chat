@@ -8,6 +8,7 @@ interface Message {
   text: string
   translated_text: string
   audio_url?: string
+  audio_url_original?: string
   is_sender: boolean
   timestamp: string
 }
@@ -124,6 +125,7 @@ export default function SimpleChatPage() {
             text: data.data.original_text,
             translated_text: 'Translating...',
             audio_url: undefined,
+            audio_url_original: undefined,
             is_sender: true,
             timestamp: new Date().toLocaleTimeString()
           }
@@ -142,7 +144,8 @@ export default function SimpleChatPage() {
             id: data.data.message_id,
             text: data.data.original_text || 'Voice message',
             translated_text: data.data.translated_text,
-            audio_url: data.data.audio_url,
+            audio_url: data.data.audio_url || data.data.audio_url_translated,
+            audio_url_original: data.data.audio_url_original,
             is_sender: true,
             timestamp: new Date().toLocaleTimeString()
           }
@@ -162,9 +165,10 @@ export default function SimpleChatPage() {
           setIsProcessing(false) // Stop processing indicator
           
           // Auto-play the translated audio if available
-          if (data.data.audio_url) {
+          const audioUrl = data.data.audio_url || data.data.audio_url_translated
+          if (audioUrl) {
             setTimeout(() => {
-              playAudio(data.data.audio_url)
+              playAudio(audioUrl)
             }, 500) // Small delay to ensure message is rendered
           }
         } else if (data.type === 'translation') {
@@ -174,6 +178,7 @@ export default function SimpleChatPage() {
             text: data.data.original_text || 'Voice message',
             translated_text: data.data.translated_text,
             audio_url: data.data.audio_url,
+            audio_url_original: data.data.audio_url_original,
             is_sender: true,
             timestamp: new Date().toLocaleTimeString()
           }
@@ -182,9 +187,10 @@ export default function SimpleChatPage() {
           setIsProcessing(false) // Stop processing indicator
           
           // Auto-play the translated audio if available
-          if (data.data.audio_url) {
+          const audioUrl = data.data.audio_url || data.data.audio_url_translated
+          if (audioUrl) {
             setTimeout(() => {
-              playAudio(data.data.audio_url)
+              playAudio(audioUrl)
             }, 500) // Small delay to ensure message is rendered
           }
         } else if (data.type === 'error') {
