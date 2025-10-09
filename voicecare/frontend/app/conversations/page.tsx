@@ -37,11 +37,7 @@ interface Conversation {
 
 const ChatPage = dynamic(() => import('../chat/page'), {
   ssr: false,
-  loading: () => (
-    <div className="flex-1 flex items-center justify-center bg-background/50">
-      <div className="animate-pulse text-muted-foreground">Loading conversation...</div>
-    </div>
-  )
+  loading: () => null
 })
 
 export default function ConversationsPage() {
@@ -53,16 +49,11 @@ export default function ConversationsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const hasLoaded = useRef(false)
   const [isWsOnline, setIsWsOnline] = useState<boolean>(true)
-  const [isLoading, setIsLoading] = useState(true)
+  const sidebarRef = useRef<HTMLDivElement>(null)
   
   const conversationId = searchParams?.get('conversationId')
-
-  const toggleMobileMenu = useCallback(() => {
-    setIsMobileMenuOpen(prev => !prev)
-  }, [])
 
   useEffect(() => {
     const init = async () => {
@@ -78,7 +69,6 @@ export default function ConversationsPage() {
         if (!current) {
           console.error('No user found in storage')
           setLoading(false)
-          setIsLoading(false)
           router.push('/auth/login')
           return
         }
@@ -113,8 +103,9 @@ export default function ConversationsPage() {
               return
             }
             
-            const otherUserId = conv.user_a_id === current.id ? conv.user_b_id : conv.user_a_id
-            
+            const otherUserId = conv.user_a_id === current.id ? conv.user_b_id : 
+                               conv.user_b_id === current.id ? conv.user_a_id : null
+                               
             const key = [current.id, otherUserId].sort().join('_')
             
             const existing = conversationMap.get(key)
@@ -133,7 +124,6 @@ export default function ConversationsPage() {
         console.error('Error fetching data:', e)
         setError('Failed to load conversations. Please try again.')
       } finally {
-        setIsLoading(false)
         setLoading(false)
       }
     }
@@ -148,8 +138,6 @@ export default function ConversationsPage() {
 
   useEffect(() => {
     if (conversationId) {
-      setIsMobileMenuOpen(false)
-      
       // If we have a conversation ID in the URL, make sure it's loaded
       const loadConversation = async () => {
         try {
@@ -241,9 +229,7 @@ export default function ConversationsPage() {
       const params = new URLSearchParams()
       params.set('conversationId', c.id)
       router.push(`/conversations?${params.toString()}`, { scroll: false })
-      
-      // Close mobile menu if open
-      setIsMobileMenuOpen(false)
+  
     } catch (e) {
       console.error('Failed to start chat:', e)
       setError('Failed to start chat')
@@ -257,7 +243,7 @@ export default function ConversationsPage() {
     router.push(`/conversations?${params.toString()}`, { scroll: false })
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400"></div>
@@ -281,77 +267,36 @@ export default function ConversationsPage() {
     )
   }
 
-  // Compute container classes to avoid overlap with New Chat dropdown
-  const listContainerClass = showNewChat
-    ? "flex-1 max-w-3xl w-full px-4 sm:px-6 lg:px-8 py-6 ml-4 mr-[320px]"
-    : "flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6"
-    
-  console.log('Rendering conversations page', {
-    loading,
-    isLoading,
-    user,
-    conversations: conversations?.length,
-    users: users?.length,
-    conversationId
-  })
+  // Main content style that accounts for the sidebar width
+  const mainContentStyle = {
+    marginLeft: '320px',
+    width: 'calc(100% - 320px)'
+  };
 
   return (
-    <>
-      {/* Mobile header */}
-      <div className="lg:hidden bg-background/80 backdrop-blur border-b border-border/50 shadow-sm z-40">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={toggleMobileMenu}
-              className="p-2 rounded-md text-foreground hover:bg-accent/50"
-            >
-              <MessageCircle className="w-5 h-5" />
-            </button>
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-7 h-7 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Heart className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-                VoiceCare
-              </span>
-            </Link>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => {
-                authService.logout();
-                router.push('/auth/login');
-              }}
-              className="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
-            >
-              Logout
-            </button>
-            <div className="h-6 w-px bg-border/50" />
-            <div className="flex items-center space-x-1.5 bg-background border border-border/50 rounded-full px-2.5 py-1">
-              {isWsOnline ? (
-                <Wifi className="w-3.5 h-3.5 text-green-500" />
-              ) : (
-                <WifiOff className="w-3.5 h-3.5 text-red-500" />
-              )}
-              <span className={`text-xs font-medium ${isWsOnline ? 'text-green-500' : 'text-red-500'}`}>
-                {isWsOnline ? 'Online' : 'Offline'}
-              </span>
-            </div>
-            
+    <div className="flex h-screen overflow-hidden">
+      {/* Left sidebar */}
+      <div 
+        ref={sidebarRef}
+        className="fixed inset-y-0 left-0 z-30 w-80 flex flex-col bg-background border-r border-border/50"
+      >
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-border/50">
+          <div className="mt-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
             <div className="relative">
               <button
                 onClick={() => setShowNewChat(v => !v)}
-                className="p-2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                className="p-1.5 rounded-full hover:bg-accent/50 text-foreground transition-colors"
                 title="New Chat"
               >
                 <Plus className="w-4 h-4" />
               </button>
               {showNewChat && (
-                <div className="absolute right-0 mt-2 w-56 bg-background border border-border/50 rounded-lg shadow-lg z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-64 bg-background border border-border/50 rounded-lg shadow-lg z-50 overflow-hidden">
                   <div className="p-1 space-y-1 max-h-64 overflow-auto">
                     {otherUsersWithNoConversation.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-muted-foreground text-center">No users available</div>
+                      <div className="px-3 py-2 text-sm text-muted-foreground">No users available</div>
                     ) : (
                       otherUsersWithNoConversation.map(u => (
                         <button
@@ -371,153 +316,104 @@ export default function ConversationsPage() {
               )}
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} fixed inset-y-0 left-0 z-30 w-96 bg-background border-r border-border/50 transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0`}>
-          <div className="h-full flex flex-col">
-            {/* Sidebar Header */}
-            <div className="p-4 border-b border-border/50">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowNewChat(v => !v)}
-                    className="p-1.5 rounded-full hover:bg-accent/50 text-foreground transition-colors"
-                    title="New Chat"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  {showNewChat && (
-                    <div className="absolute right-0 mt-2 w-64 bg-background border border-border/50 rounded-lg shadow-lg z-50 overflow-hidden">
-                      <div className="p-1 space-y-1 max-h-64 overflow-auto">
-                        {otherUsersWithNoConversation.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">No users available</div>
-                        ) : (
-                          otherUsersWithNoConversation.map(u => (
-                            <button
-                              key={u.id}
-                              onClick={() => startChatWith(u)}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-accent/50 rounded-md text-foreground flex items-center justify-between transition-colors"
-                            >
-                              <span className="font-medium">{u.name}</span>
-                              <span className="text-xs text-muted-foreground px-2 py-0.5 bg-accent/30 rounded-full">
-                                {u.role.toLowerCase()}
-                              </span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* User profile */}
-              <div className="mt-4 flex items-center space-x-3 p-2 rounded-lg bg-accent/20">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm bg-gradient-to-r from-primary to-accent text-white">
-                  {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user?.role}</p>
-                </div>
-                <button
-                  onClick={() => { 
-                    authService.logout(); 
-                    router.push('/auth/login');
-                    router.refresh();
-                  }}
-                  className="p-1.5 rounded-full hover:bg-accent/50 text-foreground transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
+          
+          {/* User profile */}
+          <div className="mt-4 flex items-center space-x-3 p-2 rounded-lg bg-accent/20">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm bg-gradient-to-r from-primary to-accent text-white">
+              {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
             </div>
-
-            {/* Conversations list */}
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center p-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                </div>
-              ) : error ? (
-                <div className="p-4 text-center text-destructive text-sm">
-                  <AlertCircle className="w-4 h-4 inline-block mr-1" />
-                  {error}
-                </div>
-              ) : conversations.length === 0 ? (
-                <div className="p-6 text-center">
-                  <div className="text-4xl mb-4">💬</div>
-                  <h3 className="text-sm font-medium text-foreground mb-1">No conversations yet</h3>
-                  <p className="text-xs text-muted-foreground">Start a new chat to begin a conversation</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border/50">
-                  {conversations.map(c => {
-                    const other = getOtherParticipant(c)
-                    const isActive = conversationId === c.id
-                    
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => openConversation(c)}
-                        className={`w-full text-left p-3 hover:bg-accent/30 transition-colors ${isActive ? 'bg-accent/20' : ''}`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs bg-gradient-to-r from-primary to-accent text-white">
-                            {other?.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-foreground truncate">{other?.name}</p>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">{other?.role}</p>
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.role}</p>
             </div>
+            <button
+              onClick={() => { 
+                authService.logout(); 
+                router.push('/auth/login');
+                router.refresh();
+              }}
+              className="p-1.5 rounded-full hover:bg-accent/50 text-foreground transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-        </aside>
+        </div>
 
-        {/* Main content */}
-        <main className="flex-1 flex flex-col bg-background/50 overflow-hidden">
-          {conversationId ? (
-            <div className="flex-1 flex flex-col h-full">
-              <ChatPage conversationId={conversationId} />
+        {/* Conversations list */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center p-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+            </div>
+          ) : error ? (
+            <div className="p-4 text-center text-destructive text-sm">
+              <AlertCircle className="w-4 h-4 inline-block mr-1" />
+              {error}
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="p-6 text-center">
+              <div className="text-4xl mb-4">💬</div>
+              <h3 className="text-sm font-medium text-foreground mb-1">No conversations yet</h3>
+              <p className="text-xs text-muted-foreground">Start a new chat to begin a conversation</p>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-              <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-4">
-                <MessageCircle className="w-8 h-8 text-primary" />
-              </div>
-              <h2 className="text-xl font-semibold text-foreground mb-2">Select a conversation</h2>
-              <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                Choose an existing conversation or start a new one to begin messaging.
-              </p>
-            
+            <div className="divide-y divide-border/50">
+              {conversations.map(c => {
+                const other = getOtherParticipant(c)
+                const isActive = conversationId === c.id
+                
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => openConversation(c)}
+                    className={`w-full text-left p-3 hover:bg-accent/30 transition-colors ${isActive ? 'bg-accent/20' : ''}`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center font-semibold text-xs bg-gradient-to-r from-primary to-accent text-white">
+                        {other?.name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-foreground truncate">{other?.name}</p>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{other?.role}</p>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           )}
-        </main>
+        </div>
+
+
       </div>
 
-      {/* Backdrop for mobile */}
-      {isMobileMenuOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-20"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
-    </>
+      {/* Main content */}
+      <main 
+        className="flex-1 flex flex-col bg-background/50 overflow-hidden"
+        style={mainContentStyle}
+      >
+        {conversationId ? (
+          <div className="flex-1 flex flex-col h-full">
+            <ChatPage conversationId={conversationId} />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-4">
+              <MessageCircle className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-xl font-semibold text-foreground mb-2">Select a conversation</h2>
+            <p className="text-muted-foreground max-w-md mx-auto mb-6">
+              Choose an existing conversation or start a new one to begin messaging.
+            </p>
+          </div>
+        )}
+      </main>
+    </div>
   )
 } 

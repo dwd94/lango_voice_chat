@@ -948,11 +948,7 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
   }, [conversationId])
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
+    return null;
   }
 
   if (!user || !activeConversation) {
@@ -999,47 +995,7 @@ export default function ChatPage({ conversationId }: ChatPageProps) {
                 Press the microphone to record your voice message.
                 It will be automatically translated for your recipient.
               </p>
-              
-              <div className="bg-accent/10 border border-border/50 rounded-xl p-6 w-full max-w-md">
-                <h4 className="font-medium text-foreground mb-4 flex items-center">
-                  <Settings2 className="w-5 h-5 mr-2 text-primary" />
-                  Current Settings
-                </h4>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Your Language:</span>
-                    <span className="font-medium text-foreground">{user?.preferred_lang?.toUpperCase()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Translation:</span>
-                    <span className="font-medium text-foreground">Automatic</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Voice:</span>
-                    <span className="font-medium text-foreground">
-                      {(() => {
-                        const prov = modelInfo?.tts?.provider || 'unknown';
-                        if (prov === 'openai') {
-                          const model = modelInfo?.tts?.model || 'tts-1';
-                          const voice = modelInfo?.tts?.voice ? ` (${modelInfo.tts.voice})` : '';
-                          return `OpenAI ${model}${voice}`;
-                        }
-                        if (prov === 'elevenlabs') return 'ElevenLabs Premium';
-                        if (prov === 'browser') return 'Browser TTS';
-                        return 'Default';
-                      })()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Mode:</span>
-                    <span className={`font-medium ${
-                      useWebSocketMode ? 'text-green-500' : 'text-amber-500'
-                    }`}>
-                      {useWebSocketMode ? 'Real-time' : 'Demo'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                     
             </div>
           ) : (
             <div className="space-y-4">

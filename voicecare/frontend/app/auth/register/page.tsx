@@ -14,23 +14,44 @@ export default function RegisterPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('patient')
-  const [preferredLang, setPreferredLang] = useState('en')
+  const [role, setRole] = useState('')
+  const [preferredLang, setPreferredLang] = useState('')
   const [gender, setGender] = useState('')
+  
+  // Get supported languages for the dropdown
+  const languages = getSupportedLanguages()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const validateForm = () => {
+    if (!name.trim()) return 'Name is required'
+    if (!email.trim()) return 'Email is required'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email address'
+    if (password.length < 6) return 'Password must be at least 6 characters long'
+    if (!role) return 'Role is required'
+    if (!preferredLang) return 'Language is required'
+    if (!gender) return 'Gender is required'
+    return ''
+  }
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    const validationError = validateForm()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    
     setError('')
     setLoading(true)
     try {
       const result = await authService.register({
-        name,
-        email,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
         password,
         role,
-        gender: gender || undefined,
+        gender,
         preferred_lang: preferredLang,
       })
       if (!result.success) {
@@ -45,8 +66,6 @@ export default function RegisterPage() {
       setLoading(false)
     }
   }
-
-  const languages = getSupportedLanguages()
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
@@ -86,19 +105,20 @@ export default function RegisterPage() {
 
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Full Name</label>
+                <label className="text-sm font-medium leading-none">Full Name <span className="text-destructive">*</span></label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  minLength={2}
                   className="w-full bg-background border border-input rounded-md py-2 px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   placeholder="Jane Doe"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Email</label>
+                <label className="text-sm font-medium leading-none">Email <span className="text-destructive">*</span></label>
                 <input
                   type="email"
                   value={email}
@@ -110,7 +130,7 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Password</label>
+                <label className="text-sm font-medium leading-none">Password <span className="text-destructive">*</span></label>
                 <input
                   type="password"
                   value={password}
@@ -120,17 +140,19 @@ export default function RegisterPage() {
                   className="w-full bg-background border border-input rounded-md py-2 px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   placeholder="••••••••"
                 />
-                
+                <p className="text-xs text-muted-foreground mt-1">Password must be at least 6 characters long</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium leading-none">Role</label>
+                  <label className="text-sm font-medium leading-none">Role <span className="text-destructive">*</span></label>
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
+                    required
                     className="w-full bg-background border border-input rounded-md py-2 px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   >
+                    <option value="" disabled hidden>Select a role</option>
                     <option value="patient">Patient</option>
                     <option value="nurse">Nurse</option>
                     <option value="admin">Admin</option>
@@ -138,12 +160,14 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium leading-none">Language</label>
+                  <label className="text-sm font-medium leading-none">Language <span className="text-destructive">*</span></label>
                   <select
                     value={preferredLang}
                     onChange={(e) => setPreferredLang(e.target.value)}
+                    required
                     className="w-full bg-background border border-input rounded-md py-2 px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   >
+                    <option value="" disabled hidden>Select a language</option>
                     {languages.map(l => (
                       <option key={l.code} value={l.code}>
                         {l.name}
@@ -154,17 +178,16 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Gender (Optional)</label>
+                <label className="text-sm font-medium leading-none">Gender <span className="text-destructive">*</span></label>
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
+                  required
                   className="w-full bg-background border border-input rounded-md py-2 px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
-                  <option value="">Prefer not to say</option>
+                  <option value="" disabled hidden>Select gender</option>
                   <option value="female">Female</option>
                   <option value="male">Male</option>
-                  <option value="nonbinary">Non-binary</option>
-                  <option value="other">Other</option>
                 </select>
               </div>
 
